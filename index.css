@@ -1,0 +1,47 @@
+#script-main {
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    font-size: 16px;
+    border: solid 1px black;
+    width: 8.5in;
+    padding: 1in 1in 1in 1.5in
+}
+*:first-child{
+    padding-top: 0;
+}
+
+sceneheading {
+    padding-top: 32px;
+}
+
+shot {
+    padding-top: 32px;
+}
+
+action {
+    padding-right: 1.5in;
+    padding-top: 16px;
+}
+
+transition {
+    text-align: right;
+    padding-top: 16px;
+}
+
+character {
+    padding-left: 2in;
+    padding-right: 3.5in;
+    padding-top: 16px;
+}
+dialogue {
+    padding-left: 1in;
+    padding-right: 2in;
+}
+
+parenthetical {
+    padding-left: 1.5in;
+}
+sceneheading{
+    padding-top: 32px;
+}
