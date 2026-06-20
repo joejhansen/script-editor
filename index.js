@@ -210,6 +210,64 @@ function handleFileInput(event) {
     event.preventDefault()
     const file = event.target.files?.[0];
     if (!file) console.log("Something went wrong");
-    parseXMLFromFile(file).then(doc => XMLtoHTML(doc)).catch(e => console.log(e))
+    parseXMLFromFile(file).then(doc => { XMLtoHTML(doc); scriptSettings = GrabElSettings(doc); console.log(scriptSettings) }).catch(e => console.log(e))
 }
+/**
+ * 
+ * @param {KeyboardEvent} event 
+ */
+function handleEnterKey(event) {
+    console.log("TODO: Change element on enter key")
+}
+/**
+ * 
+ * @param {KeyboardEvent} event 
+ */
+function handlelControlNum(event) {
+    console.log("TODO: Shortcut new element")
+    switch (event.key) {
+        case "1":
+            break;
+        case "2":
+            break;
+        case "3":
+            break;
+        case "4":
+            break;
+        case "5":
+            break;
+        case "6":
+            break;
+        case "7":
+            break;
+        case "8":
+            break;
+        case "9":
+            break;
+        default:
+            break;
+    }
+}
+/**
+ * 
+ * @param {KeyboardEvent} event 
+ */
+function handleKeyDown(event) {
+    event.stopPropagation();
+    const thisNode = document.getSelection().anchorNode;
+    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
+    if (event.key === "Enter") {
+        handleEnterKey(event)
+    } else if (event.ctrlKey && event.shiftKey && event.key !== "Control" && event.key !== "Shift") {
+        handlelControlNum(event)
+    }
+}
+function handleFocusIn(event) {
+    event.preventDefault();
+    activeChild = event.target;
+}
+let scriptWrapper = document.getElementById("script-main");
 document.getElementById("script-upload").onchange = handleFileInput
+scriptWrapper.addEventListener("keydown", handleKeyDown)
+let scriptSettings = null
+// scriptWrapper.addEventListener("focusin", handleFocusIn)

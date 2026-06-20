@@ -1,10 +1,26 @@
+:root {
+    line-height: 1.5;
+    font-weight: 400;
+    font-size: 20px;
+    /* color-scheme: light dark; */
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+    box-sizing: border-box;
+
+}
 #script-main {
+    line-height: 1;
     font-family: 'Courier New', Courier, monospace;
     display: flex;
     flex-direction: column;
-    font-size: 16px;
+    font-size: 12pt;
     border: solid 1px black;
-    width: 8.5in;
+    width: 6in;
     padding: 1in 1in 1in 1.5in
 }
 *:first-child{
@@ -20,7 +36,6 @@ shot {
 }
 
 action {
-    padding-right: 1.5in;
     padding-top: 16px;
 }
 
@@ -31,7 +46,7 @@ transition {
 
 character {
     padding-left: 2in;
-    padding-right: 3.5in;
+    padding-right: 3in;
     padding-top: 16px;
 }
 dialogue {
