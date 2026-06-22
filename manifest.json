@@ -1,0 +1,6 @@
+{
+    "name": "Free Script Editor",
+    "icons": [],
+    "start_url": "/",
+    "display": "standalone"
+}

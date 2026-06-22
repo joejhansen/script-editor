@@ -1,0 +1,15 @@
+6/22/26
+TODO: add newlines to compiled FDX because the whole <Content> section is inline
+TODO: keep script notes
+TODO: pick a pdf package because it seems like making one myself would be a nightmare
+    https://www.npmjs.com/package/jspdf
+    https://www.npmjs.com/package/pdfmake
+    https://www.npmjs.com/package/html2pdf.js
+TODO: pick a copyleft license because fuck paying, logins, analytics, any other bullshit just to make art
+TODO: make this a PWA for download and put on gh pages
+TODO: Figure out a unique name because "Lib(re)Script" is either already taken and/or refers to scripting languages
+    Lib(re), Free, Open, True, Off(Script)
+    Script, Screen(play), Tele(play), Play
+    Orson, Alfred, Charlie, Cohen, Lana, Lilly, Ward, Beatts
+    Slug, Beat, Shoot, Call, Sotto, Line
+    Cut, Fade, Transition, Smash, Match, Bokeh, Lens, Cap, Speed, Action, Set, Vamp, Improv, (Tele)Prompt(er)

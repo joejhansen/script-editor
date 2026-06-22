@@ -4,14 +4,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json" />
     <link rel="stylesheet" type="text/css" href="./index.css" />
-
-    <title>Script Editor</title>
+    <title>LibreScript</title>
 </head>
 
 <body>
     <main>
-        <input type="file" id="script-upload" accept=".fdx" />
+        <div id="options">
+            <input type="file" id="script-upload" accept=".fdx" />
+            <div id="downloads">
+                <p>Download as</p>
+                <button id="download-pdf">PDF</button>
+                <button id="download-fdx">FDX</button>
+            </div>
+        </div>
         <article id="script-main" contenteditable="true"></article>
     </main>
 

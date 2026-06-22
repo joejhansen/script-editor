@@ -11,6 +11,19 @@ const VALID_FDX_TYPES = [
     "New Act",
     "End of Act",
 ];
+const HTML_TAG_NAMES = [
+    "general",
+    "sceneheading",
+    "action",
+    "character",
+    "parenthetical",
+    "dialogue",
+    "transition",
+    "shot",
+    "castlist",
+    "newact",
+    "endofact",
+]
 
 const DEFAULT_PAGE_WIDTH = 8.5
 const DEFAULT_PAGE_HEIGHT = 11
@@ -24,7 +37,10 @@ let scriptWrapper = document.getElementById("script-main");
  * @type {ElementSettings}
  */
 let scriptSettings = null
-
+/**
+ * @type {Document}
+ */
+let originalXML = null
 
 /**
  * @typedef {Object} ElementSetting
@@ -108,7 +124,9 @@ function LoadElSettings(doc) {
      */
     let res = {};
     let settings = doc.getElementsByTagName("ElementSettings")
-    for (let setting of settings) res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = LoadElSetting(setting)
+    for (let setting of settings) {
+        res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = LoadElSetting(setting)
+    }
     return res;
 }
 
@@ -119,16 +137,22 @@ function LoadElSettings(doc) {
 function EltoHTML(el) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
     let elText = "";
-    for (let tag of el.children) if (tag.tagName === "Text") elText += tag.textContent;
+    for (let tag of el.children) if (tag.tagName === "Text") {
+        elText += tag.textContent;
+    }
+    if (elType === "parenthetical") elText = elText.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
     return `<${elType}>${elText}</${elType}>`
 }
+
 /**
  * @param {Document} doc
  */
 function XMLtoHTML(doc) {
-    const scriptContent = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
+    contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
     const articleArea = document.getElementById("script-main")
-    for (let el of scriptContent) articleArea.innerHTML += EltoHTML(el)
+    for (let el of contentEls) {
+        articleArea.innerHTML += EltoHTML(el)
+    }
 }
 
 /**
@@ -161,6 +185,10 @@ function handleFileInput(event) {
     const file = event.target.files?.[0]
     if (!file) console.log("Something went wrong")
     parseXMLFromFile(file).then(doc => {
+        while (scriptWrapper.firstChild) {
+            scriptWrapper.removeChild(scriptWrapper.firstChild)
+        }
+        originalXML = doc;
         scriptSettings = LoadElSettings(doc)
         XMLtoHTML(doc);
     }).catch(e => console.log(e))
@@ -266,5 +294,55 @@ function handleKeyDown(event) {
     else if (event.altKey && event.key !== "Alt") handlelShortCut(event, child)
 }
 
-document.getElementById("script-upload").onchange = handleFileInput
+/**
+ * @param {string} tagStr 
+ * @returns {string}
+ */
+function tagToFDXType(tagStr) {
+    return VALID_FDX_TYPES.at(HTML_TAG_NAMES.indexOf(tagStr))
+}
+
+/**
+ * @param {Document} doc
+ * @param {Element} el 
+ */
+function HTMLtoFDX(doc, el) {
+    let paraEl = doc.createElement("Paragraph")
+    let htmlTag = el.tagName.toLowerCase();
+    paraEl.setAttribute("Type", tagToFDXType(htmlTag))
+    console.log(doc)
+    let textEl = doc.createElement("Text")
+    if (htmlTag === "parenthetical") textEl.textContent = `(${el.textContent})`;
+    else textEl.textContent = el.textContent;
+    doc.getElementsByTagName("Content")[0].appendChild(paraEl)
+    paraEl.appendChild(textEl)
+}
+
+/**
+ * @param {Event}
+ */
+function downloadFDX(event) {
+    event.preventDefault();
+    const parser = new DOMParser()
+    let newContentEl = parser.parseFromString(`<Content></Content>`, "application/xml")
+    for (let child of scriptWrapper.children) {
+        HTMLtoFDX(newContentEl, child)
+    }
+    let FDRoot = originalXML.getElementsByTagName("FinalDraft")[0];
+    FDRoot.replaceChild(newContentEl.getElementsByTagName("Content")[0], FDRoot.getElementsByTagName("Content")[0])
+    const serializer = new XMLSerializer();
+    const newXMLStr = serializer.serializeToString(originalXML)
+    const blob = new Blob([newXMLStr], { type: "application/xml" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url;
+    a.download = "script.fdx"
+    a.click()
+
+    URL.revokeObjectURL(url);
+
+}
+
+document.getElementById("script-upload").addEventListener("change", handleFileInput)
 scriptWrapper.addEventListener("keydown", handleKeyDown)
+document.getElementById("download-fdx").addEventListener("click", downloadFDX)
