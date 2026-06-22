@@ -20,6 +20,9 @@ const DEFAULT_BOTTOM_MARGIN = 1.5
 const DEFAULT_LEFT_MARGIN = 1
 
 let scriptWrapper = document.getElementById("script-main");
+/**
+ * @type {ElementSettings}
+ */
 let scriptSettings = null
 
 
@@ -43,7 +46,7 @@ let scriptSettings = null
  * @property {bool} StartsNewPage
  * @property {string} PaginateAs
  * @property {string} ReturnKey
- * @property {number} Shortcut
+ * @property {string} Shortcut
  */
 
 /**
@@ -65,7 +68,7 @@ let scriptSettings = null
  * @param {Element} el
  * @returns {ElementSetting} 
  */
-function GrabElSetting(el) {
+function LoadElSetting(el) {
     let FontSpec = el.getElementsByTagName("FontSpec")[0]
     let ParagraphSpec = el.getElementsByTagName("ParagraphSpec")[0]
     let Behavior = el.getElementsByTagName("Behavior")[0]
@@ -87,11 +90,11 @@ function GrabElSetting(el) {
         RightIndent: parseFloat(ParagraphSpec.getAttribute("RightIndent")),
         SpaceBefore: parseInt(ParagraphSpec.getAttribute("SpaceBefore")),
         Spacing: parseInt(ParagraphSpec.getAttribute("Spacing")),
-        StartsNewPage: ParagraphSpec.getAttribute("StartsNewPage") == "Yes" ? true : false,
+        StartsNewPage: ParagraphSpec.getAttribute("StartsNewPage") === "Yes" ? true : false,
 
         PaginateAs: Behavior.getAttribute("PaginateAs"),
         ReturnKey: Behavior.getAttribute("ReturnKey"),
-        Shortcut: parseInt(Behavior.getAttribute("Shortcut")),
+        Shortcut: Behavior.getAttribute("Shortcut"),
     };
 }
 
@@ -99,15 +102,13 @@ function GrabElSetting(el) {
  * @param {Document} doc 
  * @returns {ElementSettings}
  */
-function GrabElSettings(doc) {
+function LoadElSettings(doc) {
     /**
      * @type {ElementSettings}
      */
     let res = {};
     let settings = doc.getElementsByTagName("ElementSettings")
-    for (let setting of settings) {
-        res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = GrabElSetting(setting)
-    }
+    for (let setting of settings) res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = LoadElSetting(setting)
     return res;
 }
 
@@ -118,18 +119,7 @@ function GrabElSettings(doc) {
 function EltoHTML(el) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
     let elText = "";
-    for (let tag of el.children) {
-        if (tag.tagName == "Text") elText += tag.textContent;
-    }
-    switch (elType) {
-        case "transition":
-        case "character":
-        case "sceneheading":
-            elText = elText.toUpperCase();
-            break;
-        default:
-            break;
-    }
+    for (let tag of el.children) if (tag.tagName === "Text") elText += tag.textContent;
     return `<${elType}>${elText}</${elType}>`
 }
 /**
@@ -138,9 +128,7 @@ function EltoHTML(el) {
 function XMLtoHTML(doc) {
     const scriptContent = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
     const articleArea = document.getElementById("script-main")
-    for (let el of scriptContent) {
-        articleArea.innerHTML += EltoHTML(el)
-    }
+    for (let el of scriptContent) articleArea.innerHTML += EltoHTML(el)
 }
 
 /**
@@ -160,9 +148,7 @@ function parseXMLString(xmlString) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlString, 'text/xml');
     const errorNode = doc.querySelector('parsererror');
-    if (errorNode) {
-        throw new Error(`XML parsing error: ${errorNode.textContent}`);
-    }
+    if (errorNode) throw new Error(`XML parsing error: ${errorNode.textContent}`);
     return doc;
 }
 
@@ -172,10 +158,10 @@ function parseXMLString(xmlString) {
  */
 function handleFileInput(event) {
     event.preventDefault()
-    const file = event.target.files?.[0];
-    if (!file) console.log("Something went wrong");
+    const file = event.target.files?.[0]
+    if (!file) console.log("Something went wrong")
     parseXMLFromFile(file).then(doc => {
-        scriptSettings = GrabElSettings(doc);
+        scriptSettings = LoadElSettings(doc)
         XMLtoHTML(doc);
     }).catch(e => console.log(e))
 }
@@ -185,34 +171,85 @@ function handleFileInput(event) {
  * @param {Element} el
  */
 function handleEnterKey(event, el) {
-    event.preventDefault();
-    console.log("TODO: Change element on enter key")
-    const cursorPosition = document.getSelection().anchorOffset;
-    const textToShift = el.textContent.substring(cursorPosition);
-    const newTagName = scriptSettings[el.tagName.toLowerCase()].ReturnKey.toLowerCase();
-    let newElement = document.createElement(newTagName)
-    if (cursorPosition !== el.textContent.length) newElement.textContent = textToShift;
-    else newElement.appendChild(document.createElement('br'))
+    event.preventDefault()
+    const cursorPosition = document.getSelection().anchorOffset
+    const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.toLowerCase(), el.textContent.substring(cursorPosition))
     el.textContent = el.textContent.substring(0, cursorPosition)
+    if (el.textContent.length === 0) el.appendChild(document.createElement('br'))
     scriptWrapper.insertBefore(newElement, el.nextSibling)
 
-    newElement.focus();
-    const range = document.createRange();
-    const sel = window.getSelection();
-    range.setStart(newElement, 0);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    setSelection(newElement, 0)
+}
+
+/**
+ * @param {string} type 
+ * @param {string} textContent 
+ * @returns {Element}
+ */
+function newScriptElement(type, textContent = "") {
+    let newElement = document.createElement(type)
+    if (textContent.length === 0) newElement.appendChild(document.createElement('br'))
+    else newElement.textContent = textContent
+    return newElement
+}
+
+/**
+ * @param {Element} el Element to place cursor within
+ * @param {number} pos Position to set curose within element
+ */
+function setSelection(el, pos) {
+    el.focus()
+    const range = document.createRange()
+    const sel = window.getSelection()
+    range.setStart(el, pos)
+    range.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(range)
+}
+
+/**
+ * @param {Element} el 
+ * @param {string} newType 
+ */
+function changeElementTo(el, newType) {
+    const newElement = newScriptElement(newType, el.textContent)
+    scriptWrapper.replaceChild(newElement, el)
+    setSelection(newElement, 0)
 }
 
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el
  */
-function handlelControlNum(event, el) {
-    console.log("TODO: Shortcut new element")
-    for (let rule of scriptSettings) {
+function handlelShortCut(event, el) {
+    if (event.key.length > 1 || isNaN(parseInt(event.key))) return;
+    for (const setting in scriptSettings) {
+        if (scriptSettings[setting].Shortcut === event.key) changeElementTo(el, setting)
+    }
+}
 
+/**
+ * @param {KeyboardEvent} event 
+ * @param {Element} el 
+ */
+function handleTab(event, el) {
+    event.preventDefault();
+
+    let newElShortcut = scriptSettings[el.tagName.toLowerCase()].Shortcut;
+    if (newElShortcut === ':') newElShortcut = "0";
+    else if (newElShortcut === '9') newElShortcut = ":";
+    else newElShortcut = (parseInt(newElShortcut) + 1).toString();
+
+    console.log(newElShortcut)
+    for (const setting in scriptSettings) {
+        if (scriptSettings[setting].Shortcut === newElShortcut) {
+            if (el.textContent.length === 0) changeElementTo(el, setting)
+            else {
+                let newElement = newScriptElement(setting)
+                scriptWrapper.insertBefore(newElement, el.nextSibling)
+                setSelection(newElement, 0)
+            }
+        }
     }
 }
 
@@ -223,11 +260,10 @@ function handleKeyDown(event) {
     event.stopPropagation();
     const thisNode = document.getSelection().anchorNode;
     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-    if (event.key === "Enter") {
-        handleEnterKey(event, child)
-    } else if (event.ctrlKey && event.shiftKey && event.key !== "Control" && event.key !== "Shift") {
-        handlelControlNum(event, child)
-    }
+
+    if (event.key === "Enter") handleEnterKey(event, child)
+    else if (event.key === "Tab") handleTab(event, child)
+    else if (event.altKey && event.key !== "Alt") handlelShortCut(event, child)
 }
 
 document.getElementById("script-upload").onchange = handleFileInput

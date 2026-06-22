@@ -2,7 +2,7 @@
     line-height: 1.5;
     font-weight: 400;
     font-size: 20px;
-    /* color-scheme: light dark; */
+    color-scheme: light dark;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -12,6 +12,18 @@
 html {
     box-sizing: border-box;
 }
+
+main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+input {
+    padding: 1rem;
+}
+
 #script-main {
     box-sizing: border-box;
     line-height: 1;
@@ -23,7 +35,8 @@ html {
     width: 8.5in;
     padding: 1in 1in 1in 1.5in
 }
-*:first-child{
+
+*:first-child {
     padding-top: 0;
 }
 
@@ -49,14 +62,24 @@ character {
     padding-right: 3in;
     padding-top: 16px;
 }
+
 dialogue {
     padding-left: 1in;
     padding-right: 2in;
 }
 
 parenthetical {
+    text-indent: -0.1in;
     padding-left: 1.5in;
+    padding-right: 2in;
 }
-sceneheading{
+
+sceneheading {
     padding-top: 32px;
+}
+
+transition,
+character,
+sceneheading {
+    text-transform: uppercase;
 }
