@@ -40,7 +40,7 @@ input {}
     }
 }
 
-*:first-child {
+*:first-child:not(.sub-element) {
     padding-top: 0;
 }
 

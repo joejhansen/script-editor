@@ -25,14 +25,18 @@ const HTML_TAG_NAMES = [
     "endofact",
 ]
 
+// Everything in inches
 const DEFAULT_PAGE_WIDTH = 8.5
 const DEFAULT_PAGE_HEIGHT = 11
 const DEFAULT_TOP_MARGIN = 1
 const DEFAULT_RIGHT_MARGIN = 1
 const DEFAULT_BOTTOM_MARGIN = 1.5
 const DEFAULT_LEFT_MARGIN = 1
+const PIXELS_PER_INCH = 96
 
 let scriptWrapper = document.getElementById("script-main");
+let measuringPage = document.getElementById("measuring-page")
+let measuringElement = document.getElementById("measuring-element")
 /**
  * @type {ElementSettings}
  */
@@ -141,7 +145,7 @@ function EltoHTML(el) {
         elText += tag.textContent;
     }
     if (elType === "parenthetical") elText = elText.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
-    return `<${elType}>${elText}</${elType}>`
+    return `<${elType} class="screenplay-element">${elText}</${elType}>`
 }
 
 /**
@@ -340,6 +344,55 @@ function downloadFDX(event) {
     a.click()
 
     URL.revokeObjectURL(url);
+
+}
+/**
+ * 
+ * @param {Element} el 
+ */
+function emptyElement(el) {
+    while (el.firstChild) el.remove(el.firstChild)
+}
+/**
+ * @param {Element} element 
+ * @param {number} firstElementHeight
+ * @param {number} maxHeight 
+ * @param {bool} firstIsSub
+ * @return {Element[]} maxHeight 
+ */
+function segmentElement(element, firstElementHeight, maxHeight, firstIsSub) {
+
+    let blankElement = element.cloneNode(true)
+    blankElement.textContent = "";
+    if (firstIsSub) element.classList.add("sub-element")
+    measuringElement.appendChild(element)
+    while (measuringElement.getBoundingClientRect().height > firstElementHeight) {
+        blankElement.textContent = `${measuringElement.textContent.substring(measuringElement.textContent.length - 1)}${blankElement.textContent}`
+        measuringElement.textContent = measuringElement.substring(0, measuringElement.textContent.length - 1)
+    }
+    
+}
+
+/**
+ * 
+ * @param {Element[]} elements 
+ * @return {Element[]}
+ */
+function paginate(elements) {
+    /** @type {Element[]} */
+    let res = []
+    const MaxPageHeight = (DEFAULT_PAGE_HEIGHT - DEFAULT_TOP_MARGIN - DEFAULT_BOTTOM_MARGIN) * PIXELS_PER_INCH;
+    emptyElement(measuringPage)
+    let i = 0;
+    for (let element of elements) {
+        measuringPage.appendChild(element)
+        let pageRect = measuringPage.getBoundingClientRect();
+        if (pageRect.height > MaxPageHeight) {
+            measuringPage.removeChild(measuringPage.lastChild)
+            let segmentedElements = segmentElement(element, pageRect.height - MaxPageHeight, MaxPageHeight, measuringPage.children.length !== 0)
+        }
+
+    }
 
 }
 

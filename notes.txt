@@ -13,3 +13,6 @@ TODO: Figure out a unique name because "Lib(re)Script" is either already taken a
     Orson, Alfred, Charlie, Cohen, Lana, Lilly, Ward, Beatts
     Slug, Beat, Shoot, Call, Sotto, Line
     Cut, Fade, Transition, Smash, Match, Bokeh, Lens, Cap, Speed, Action, Set, Vamp, Improv, (Tele)Prompt(er)
+
+6/23/26
+TODO: Pagination
