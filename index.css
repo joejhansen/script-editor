@@ -53,6 +53,14 @@ input {}
         margin: 0;
     }
 }
+#uploads{
+    display: flex;
+    flex-direction: column;
+    padding: 0 1rem 1rem 1rem;
+    button{
+        margin-top: .5rem;
+    }
+}
 
 sceneheading {
     padding-top: 32px;

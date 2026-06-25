@@ -367,10 +367,19 @@ function segmentElement(element, firstElementHeight, maxHeight, firstIsSub) {
     if (firstIsSub) element.classList.add("sub-element")
     measuringElement.appendChild(element)
     while (measuringElement.getBoundingClientRect().height > firstElementHeight) {
+        let moveThisWord = "";
+        let i = measuringElement.textContent.length - 1
+        // while (i >= 0) {
+            // if (measuringElement.textContent[i] === " "){
+                // moveThisWord = measuringElement.textContent.
+            // }
+
+            // i--
+        // }
         blankElement.textContent = `${measuringElement.textContent.substring(measuringElement.textContent.length - 1)}${blankElement.textContent}`
         measuringElement.textContent = measuringElement.substring(0, measuringElement.textContent.length - 1)
     }
-    
+
 }
 
 /**
