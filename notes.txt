@@ -16,3 +16,12 @@ TODO: Figure out a unique name because "Lib(re)Script" is either already taken a
 
 6/23/26
 TODO: Pagination
+
+6/24/26
+TODO: Copy/paste
+TODO: better undo/redo tree
+
+6/25/26
+TODO: title page stuff
+DONE: Ctrl+A -> Delete should leave behind a scene heading
+    just if the document is blank at any time really

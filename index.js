@@ -30,13 +30,18 @@ const DEFAULT_PAGE_WIDTH = 8.5
 const DEFAULT_PAGE_HEIGHT = 11
 const DEFAULT_TOP_MARGIN = 1
 const DEFAULT_RIGHT_MARGIN = 1
-const DEFAULT_BOTTOM_MARGIN = 1.5
-const DEFAULT_LEFT_MARGIN = 1
+const DEFAULT_BOTTOM_MARGIN = 1
+const DEFAULT_LEFT_MARGIN = 1.5
 const PIXELS_PER_INCH = 96
 
 let scriptWrapper = document.getElementById("script-main");
 let measuringPage = document.getElementById("measuring-page")
 let measuringElement = document.getElementById("measuring-element")
+
+/**
+ * @type {ElementSettings}
+ */
+let defaultScriptSettings = null
 /**
  * @type {ElementSettings}
  */
@@ -125,7 +130,7 @@ function LoadElSetting(el) {
 function LoadElSettings(doc) {
     /**
      * @type {ElementSettings}
-     */
+    */
     let res = {};
     let settings = doc.getElementsByTagName("ElementSettings")
     for (let setting of settings) {
@@ -268,11 +273,16 @@ function handleTab(event, el) {
     event.preventDefault();
 
     let newElShortcut = scriptSettings[el.tagName.toLowerCase()].Shortcut;
-    if (newElShortcut === ':') newElShortcut = "0";
-    else if (newElShortcut === '9') newElShortcut = ":";
-    else newElShortcut = (parseInt(newElShortcut) + 1).toString();
+    if (event.shiftKey) {
+        if (newElShortcut === '0') newElShortcut = ":";
+        else if (newElShortcut === ':') newElShortcut = "9";
+        else newElShortcut = (parseInt(newElShortcut) - 1).toString();
+    } else {
+        if (newElShortcut === ':') newElShortcut = "0";
+        else if (newElShortcut === '9') newElShortcut = ":";
+        else newElShortcut = (parseInt(newElShortcut) + 1).toString();
+    }
 
-    console.log(newElShortcut)
     for (const setting in scriptSettings) {
         if (scriptSettings[setting].Shortcut === newElShortcut) {
             if (el.textContent.length === 0) changeElementTo(el, setting)
@@ -284,6 +294,31 @@ function handleTab(event, el) {
         }
     }
 }
+/**
+ * @param {KeyboardEvent} event 
+ * @param {Element} el 
+ */
+function handleBackspaceKey(event, el) {
+    const selection = document.getSelection();
+    const range = selection.getRangeAt(0);
+
+    // for ctrl+a -> delete/backspace
+    const allSelected = range.startContainer === scriptWrapper && range.startOffset === 0 &&
+        range.endContainer === scriptWrapper && range.endOffset === scriptWrapper.childNodes.length;
+
+    // for if trying to delete from the first position of first element, or if the document is completely blank
+    const isFirstElement = el === scriptWrapper.firstElementChild;
+    const cursorAtStart = range.startOffset === 0;
+    const nothingSelected = selection.isCollapsed;
+    const elementIsEmpty = !el.textContent.trim();
+
+    if ((isFirstElement && cursorAtStart && nothingSelected && elementIsEmpty)) {
+        event.preventDefault()
+    } else if (allSelected) {
+        event.preventDefault();
+        newBlankScript();
+    }
+}
 
 /**
  * @param {KeyboardEvent} event 
@@ -292,8 +327,9 @@ function handleKeyDown(event) {
     event.stopPropagation();
     const thisNode = document.getSelection().anchorNode;
     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-
+    // console.log(event.key)
     if (event.key === "Enter") handleEnterKey(event, child)
+    else if (event.key === "Backspace") handleBackspaceKey(event, child)
     else if (event.key === "Tab") handleTab(event, child)
     else if (event.altKey && event.key !== "Alt") handlelShortCut(event, child)
 }
@@ -314,7 +350,6 @@ function HTMLtoFDX(doc, el) {
     let paraEl = doc.createElement("Paragraph")
     let htmlTag = el.tagName.toLowerCase();
     paraEl.setAttribute("Type", tagToFDXType(htmlTag))
-    console.log(doc)
     let textEl = doc.createElement("Text")
     if (htmlTag === "parenthetical") textEl.textContent = `(${el.textContent})`;
     else textEl.textContent = el.textContent;
@@ -358,7 +393,7 @@ function emptyElement(el) {
  * @param {number} firstElementHeight
  * @param {number} maxHeight 
  * @param {bool} firstIsSub
- * @return {Element[]} maxHeight 
+ * @return {Element[]} 
  */
 function segmentElement(element, firstElementHeight, maxHeight, firstIsSub) {
 
@@ -367,14 +402,14 @@ function segmentElement(element, firstElementHeight, maxHeight, firstIsSub) {
     if (firstIsSub) element.classList.add("sub-element")
     measuringElement.appendChild(element)
     while (measuringElement.getBoundingClientRect().height > firstElementHeight) {
-        let moveThisWord = "";
-        let i = measuringElement.textContent.length - 1
+        // let moveThisWord = "";
+        // let i = measuringElement.textContent.length - 1
         // while (i >= 0) {
-            // if (measuringElement.textContent[i] === " "){
-                // moveThisWord = measuringElement.textContent.
-            // }
+        // if (measuringElement.textContent[i] === " "){
+        // moveThisWord = measuringElement.textContent.
+        // }
 
-            // i--
+        // i--
         // }
         blankElement.textContent = `${measuringElement.textContent.substring(measuringElement.textContent.length - 1)}${blankElement.textContent}`
         measuringElement.textContent = measuringElement.substring(0, measuringElement.textContent.length - 1)
@@ -392,19 +427,65 @@ function paginate(elements) {
     let res = []
     const MaxPageHeight = (DEFAULT_PAGE_HEIGHT - DEFAULT_TOP_MARGIN - DEFAULT_BOTTOM_MARGIN) * PIXELS_PER_INCH;
     emptyElement(measuringPage)
-    let i = 0;
     for (let element of elements) {
         measuringPage.appendChild(element)
         let pageRect = measuringPage.getBoundingClientRect();
         if (pageRect.height > MaxPageHeight) {
             measuringPage.removeChild(measuringPage.lastChild)
             let segmentedElements = segmentElement(element, pageRect.height - MaxPageHeight, MaxPageHeight, measuringPage.children.length !== 0)
+            if (segmentedElements[0].textContent.trim()) measuringPage.appendChild(segmentedElements[0])
+            let newPage = measuringPage.cloneNode(true)
+            // newPage.id = ""
+            // newPage.classList.add("screenplay-page")
+            // scriptWrapper.appendChild(newPage)
+            for (let i = 1; i < segmentedElements.length; i++) {
+
+            }
+            // aaaaaaaahhhhhhhhh
         }
 
     }
 
+    // take each element
+    // progressively add them to the measuring page
+    // when the measuring page overflows
+    //      try to break up the element that overflowed
+    //      if one or more lines from that element can go in last page, put it there
+    //      otherwise, put it and any other elements on new pages
+
 }
 
+async function loadDefaultSettings() {
+    if (defaultScriptSettings === null) {
+        fetch("DefaultSettings.xml")
+            .then(res => res.text())
+            .then(text => parseXMLString(text))
+            .then((doc) => {
+                defaultScriptSettings = LoadElSettings(doc);
+                scriptSettings = defaultScriptSettings
+                if (scriptSettings === null) throw "DEBUG:\tSomething went wrong loading scriptSettings"
+                else console.log("DEBUG:\tDefault settings loaded")
+            })
+            .catch(e => console.log(e))
+    } else {
+        scriptSettings = defaultScriptSettings
+    }
+}
+
+function newBlankScript() {
+    loadDefaultSettings().then(_ => {
+        while (scriptWrapper.firstChild) {
+            scriptWrapper.removeChild(scriptWrapper.firstChild)
+        }
+        let newSceneHeading = document.createElement("sceneheading")
+        newSceneHeading.appendChild(document.createElement("br"))
+        scriptWrapper.appendChild(newSceneHeading)
+        setSelection(scriptWrapper.firstChild, 0)
+    }).catch(e => console.log(e));
+}
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
 scriptWrapper.addEventListener("keydown", handleKeyDown)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
+document.getElementById("new-blank").addEventListener("click", newBlankScript)
+loadDefaultSettings();
+setSelection(scriptWrapper.children[0], 0)
