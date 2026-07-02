@@ -12,9 +12,11 @@
 
 html {
     box-sizing: border-box;
+    background-color: white;
 }
 
 main {
+    color: black;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -23,7 +25,7 @@ main {
 
 input {}
 
-#script-main {
+.page {
     box-sizing: border-box;
     line-height: 1;
     display: flex;
@@ -31,7 +33,9 @@ input {}
     font-size: 12pt;
     border: solid 1px black;
     width: 8.5in;
-    padding: 1in 1in 1in 1.5in
+    height:11in;
+    padding: 1in 1in 1in 1.5in;
+    margin-bottom: 1rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,7 +44,7 @@ input {}
     }
 }
 
-*:first-child:not(.sub-element) {
+*:first-child:not(.page) {
     padding-top: 0;
 }
 

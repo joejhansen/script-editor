@@ -141,7 +141,7 @@ function LoadElSettings(doc) {
 
 /**
  * @param {Element} el 
- * @returns {string}
+ * @returns {HTMLElement}
  */
 function EltoHTML(el) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
@@ -150,18 +150,26 @@ function EltoHTML(el) {
         elText += tag.textContent;
     }
     if (elType === "parenthetical") elText = elText.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
-    return `<${elType} class="screenplay-element">${elText}</${elType}>`
+    let newEl = document.createElement(elType)
+    newEl.textContent = elText;
+    return newEl
+    // return `<${elType} class="screenplay-element">${elText}</${elType}>`
 }
 
 /**
  * @param {Document} doc
+ * @return {HTMLElement[]}
  */
 function XMLtoHTML(doc) {
+    /** @type {Element[]} */
+    let res = []
     contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
-    const articleArea = document.getElementById("script-main")
+    // const articleArea = document.getElementById("script-main")
+
     for (let el of contentEls) {
-        articleArea.innerHTML += EltoHTML(el)
+        res.push(EltoHTML(el))
     }
+    return res;
 }
 
 /**
@@ -192,28 +200,32 @@ function parseXMLString(xmlString) {
 function handleFileInput(event) {
     event.preventDefault()
     const file = event.target.files?.[0]
-    if (!file) console.log("Something went wrong")
+    if (!file) console.warn("DEBUG:\t handleFileInput -> Something went wrong loading file")
     parseXMLFromFile(file).then(doc => {
         while (scriptWrapper.firstChild) {
             scriptWrapper.removeChild(scriptWrapper.firstChild)
         }
         originalXML = doc;
         scriptSettings = LoadElSettings(doc)
-        XMLtoHTML(doc);
-    }).catch(e => console.log(e))
+        let screenplayPages = paginateScreenplay(XMLtoHTML(doc));
+        for (let page of screenplayPages) {
+            scriptWrapper.appendChild(page);
+        }
+    }).catch(e => console.warn(e))
 }
 
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el
+ * @param {Element} currentPage
  */
-function handleEnterKey(event, el) {
+function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
     const cursorPosition = document.getSelection().anchorOffset
     const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.toLowerCase(), el.textContent.substring(cursorPosition))
     el.textContent = el.textContent.substring(0, cursorPosition)
     if (el.textContent.length === 0) el.appendChild(document.createElement('br'))
-    scriptWrapper.insertBefore(newElement, el.nextSibling)
+    currentPage.insertBefore(newElement, el.nextSibling)
 
     setSelection(newElement, 0)
 }
@@ -247,29 +259,32 @@ function setSelection(el, pos) {
 /**
  * @param {Element} el 
  * @param {string} newType 
+ * @param {Element} currentPage
  */
-function changeElementTo(el, newType) {
+function changeElementTo(el, newType, currentPage) {
     const newElement = newScriptElement(newType, el.textContent)
-    scriptWrapper.replaceChild(newElement, el)
+    currentPage.replaceChild(newElement, el)
     setSelection(newElement, 0)
 }
 
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el
+ * @param {Element} currentPage
  */
-function handlelShortCut(event, el) {
+function handlelShortCut(event, el, currentPage) {
     if (event.key.length > 1 || isNaN(parseInt(event.key))) return;
     for (const setting in scriptSettings) {
-        if (scriptSettings[setting].Shortcut === event.key) changeElementTo(el, setting)
+        if (scriptSettings[setting].Shortcut === event.key) changeElementTo(el, setting, currentPage)
     }
 }
 
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el 
+ * @param {Element} currentPage
  */
-function handleTab(event, el) {
+function handleTab(event, el, currentPage) {
     event.preventDefault();
 
     let newElShortcut = scriptSettings[el.tagName.toLowerCase()].Shortcut;
@@ -285,10 +300,10 @@ function handleTab(event, el) {
 
     for (const setting in scriptSettings) {
         if (scriptSettings[setting].Shortcut === newElShortcut) {
-            if (el.textContent.length === 0) changeElementTo(el, setting)
+            if (el.textContent.length === 0) changeElementTo(el, setting, currentPage)
             else {
                 let newElement = newScriptElement(setting)
-                scriptWrapper.insertBefore(newElement, el.nextSibling)
+                currentPage.insertBefore(newElement, el.nextSibling)
                 setSelection(newElement, 0)
             }
         }
@@ -297,8 +312,9 @@ function handleTab(event, el) {
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el 
+ * @param {Element} currentPage
  */
-function handleBackspaceKey(event, el) {
+function handleBackspaceKey(event, el, currentPage) {
     const selection = document.getSelection();
     const range = selection.getRangeAt(0);
 
@@ -317,7 +333,9 @@ function handleBackspaceKey(event, el) {
     } else if (allSelected) {
         event.preventDefault();
         newBlankScript();
+    } else {
     }
+    
 }
 
 /**
@@ -327,11 +345,11 @@ function handleKeyDown(event) {
     event.stopPropagation();
     const thisNode = document.getSelection().anchorNode;
     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-    // console.log(event.key)
-    if (event.key === "Enter") handleEnterKey(event, child)
-    else if (event.key === "Backspace") handleBackspaceKey(event, child)
-    else if (event.key === "Tab") handleTab(event, child)
-    else if (event.altKey && event.key !== "Alt") handlelShortCut(event, child)
+    const currentPage = child.parentElement;
+    if (event.key === "Enter") handleEnterKey(event, child, currentPage)
+    else if (event.key === "Backspace") handleBackspaceKey(event, child, currentPage)
+    else if (event.key === "Tab") handleTab(event, child, currentPage)
+    else if (event.altKey && event.key !== "Alt") handlelShortCut(event, child, currentPage)
 }
 
 /**
@@ -382,78 +400,12 @@ function downloadFDX(event) {
 
 }
 /**
- * 
  * @param {Element} el 
  */
 function emptyElement(el) {
     while (el.firstChild) el.remove(el.firstChild)
 }
-/**
- * @param {Element} element 
- * @param {number} firstElementHeight
- * @param {number} maxHeight 
- * @param {bool} firstIsSub
- * @return {Element[]} 
- */
-function segmentElement(element, firstElementHeight, maxHeight, firstIsSub) {
 
-    let blankElement = element.cloneNode(true)
-    blankElement.textContent = "";
-    if (firstIsSub) element.classList.add("sub-element")
-    measuringElement.appendChild(element)
-    while (measuringElement.getBoundingClientRect().height > firstElementHeight) {
-        // let moveThisWord = "";
-        // let i = measuringElement.textContent.length - 1
-        // while (i >= 0) {
-        // if (measuringElement.textContent[i] === " "){
-        // moveThisWord = measuringElement.textContent.
-        // }
-
-        // i--
-        // }
-        blankElement.textContent = `${measuringElement.textContent.substring(measuringElement.textContent.length - 1)}${blankElement.textContent}`
-        measuringElement.textContent = measuringElement.substring(0, measuringElement.textContent.length - 1)
-    }
-
-}
-
-/**
- * 
- * @param {Element[]} elements 
- * @return {Element[]}
- */
-function paginate(elements) {
-    /** @type {Element[]} */
-    let res = []
-    const MaxPageHeight = (DEFAULT_PAGE_HEIGHT - DEFAULT_TOP_MARGIN - DEFAULT_BOTTOM_MARGIN) * PIXELS_PER_INCH;
-    emptyElement(measuringPage)
-    for (let element of elements) {
-        measuringPage.appendChild(element)
-        let pageRect = measuringPage.getBoundingClientRect();
-        if (pageRect.height > MaxPageHeight) {
-            measuringPage.removeChild(measuringPage.lastChild)
-            let segmentedElements = segmentElement(element, pageRect.height - MaxPageHeight, MaxPageHeight, measuringPage.children.length !== 0)
-            if (segmentedElements[0].textContent.trim()) measuringPage.appendChild(segmentedElements[0])
-            let newPage = measuringPage.cloneNode(true)
-            // newPage.id = ""
-            // newPage.classList.add("screenplay-page")
-            // scriptWrapper.appendChild(newPage)
-            for (let i = 1; i < segmentedElements.length; i++) {
-
-            }
-            // aaaaaaaahhhhhhhhh
-        }
-
-    }
-
-    // take each element
-    // progressively add them to the measuring page
-    // when the measuring page overflows
-    //      try to break up the element that overflowed
-    //      if one or more lines from that element can go in last page, put it there
-    //      otherwise, put it and any other elements on new pages
-
-}
 
 async function loadDefaultSettings() {
     if (defaultScriptSettings === null) {
@@ -463,10 +415,10 @@ async function loadDefaultSettings() {
             .then((doc) => {
                 defaultScriptSettings = LoadElSettings(doc);
                 scriptSettings = defaultScriptSettings
-                if (scriptSettings === null) throw "DEBUG:\tSomething went wrong loading scriptSettings"
-                else console.log("DEBUG:\tDefault settings loaded")
+                if (scriptSettings === null) throw "DEBUG:\t loadDefaultSettings -> Something went wrong loading scriptSettings"
+                else console.log("DEBUG:\t loadDefaultSettings -> Default settings loaded")
             })
-            .catch(e => console.log(e))
+            .catch(e => console.warn(e))
     } else {
         scriptSettings = defaultScriptSettings
     }
@@ -477,15 +429,256 @@ function newBlankScript() {
         while (scriptWrapper.firstChild) {
             scriptWrapper.removeChild(scriptWrapper.firstChild)
         }
+
         let newSceneHeading = document.createElement("sceneheading")
         newSceneHeading.appendChild(document.createElement("br"))
-        scriptWrapper.appendChild(newSceneHeading)
-        setSelection(scriptWrapper.firstChild, 0)
-    }).catch(e => console.log(e));
+        let newPage = document.createElement("div")
+        newPage.setAttribute("contenteditable", "true")
+        newPage.classList.add("page")
+        newPage.appendChild(newSceneHeading)
+        scriptWrapper.appendChild(newPage)
+        setSelection(newSceneHeading, 0)
+    }).catch(e => console.warn(e));
 }
+
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
 scriptWrapper.addEventListener("keydown", handleKeyDown)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("new-blank").addEventListener("click", newBlankScript)
 loadDefaultSettings();
-setSelection(scriptWrapper.children[0], 0)
+setSelection(scriptWrapper.children[0].children[0], 0)
+
+// Fuck it, let's just ask Claude
+
+/**
+ * @callback KeepWithNextPredicate
+ * @param {HTMLElement} element
+ * @returns {boolean} True if this element should never be the last one on a page.
+ */
+
+/**
+ * @typedef {Object} PaginationOptions
+ * @property {string} [pageClassName='page']
+ * @property {number} [pageHeightIn=11]
+ * @property {string} [characterTagName='character'] Tag name used for character cues.
+ *   Also reused (with different text) to render the generated (MORE) and
+ *   (CONT'D) lines, so they automatically pick up your existing CSS.
+ * @property {string} [dialogueTagName='dialogue'] Tag name used for dialogue blocks.
+ *   Only elements with this tag are eligible for mid-element splitting.
+ * @property {string} [moreText='(MORE)']
+ * @property {string} [contdText="(CONT'D)"]
+ * @property {number} [minWordsBeforeSplit=4] Minimum words that must remain on the
+ *   first half of a split. Prevents splitting after just one or two words.
+ * @property {number} [minWordsAfterSplit=4] Minimum words required on the
+ *   continuation half. Prevents leaving a lone word dangling as a "widow"
+ *   at the top of the next page.
+ * @property {KeepWithNextPredicate} [isKeepWithNext]
+ */
+
+/**
+ * Splits a flat, in-order array of screenplay element nodes into an array of
+ * page container elements sized to physical page dimensions.
+ *
+ * Dialogue splitting: if a <dialogue> element (tag configurable via
+ * `dialogueTagName`) would overflow the current page, this function performs
+ * a binary search over its word tokens to find the maximum amount of text
+ * that fits alongside a trailing "(MORE)" line. The remaining text becomes a
+ * new <dialogue> element placed at the top of the next page, preceded by a
+ * repeated character cue reading "NAME (CONT'D)". This repeats automatically
+ * if the remainder is itself still too long for a single page.
+ *
+ * Splitting is skipped (falls back to moving the whole element to the next
+ * page) if the resulting halves would be too short per minWordsBeforeSplit /
+ * minWordsAfterSplit, or if there's no usable room on the current page at all.
+ *
+ * @param {HTMLElement[]} elements Flat array of screenplay element nodes, in
+ *   script order.
+ * @param {PaginationOptions} [options]
+ * @returns {HTMLElement[]} Array of page container elements, populated and
+ *   detached (not yet appended anywhere).
+ */
+function paginateScreenplay(elements, options = {}) {
+    const {
+        pageClassName = 'page',
+        pageHeightIn = 11,
+        characterTagName = 'character',
+        dialogueTagName = 'dialogue',
+        moreText = '(MORE)',
+        contdText = "(CONT'D)",
+        minWordsBeforeSplit = 4,
+        minWordsAfterSplit = 4,
+        isKeepWithNext = null,
+    } = options;
+
+    const PX_PER_IN = 96;
+    const pageHeightPx = pageHeightIn * PX_PER_IN;
+
+    const sandbox = document.createElement('div');
+    Object.assign(sandbox.style, {
+        position: 'absolute',
+        left: '-99999px',
+        top: '0',
+        // visibility: 'hidden',
+        pointerEvents: 'none',
+    });
+    document.body.appendChild(sandbox);
+
+    function createPage() {
+        const page = document.createElement('div');
+        page.setAttribute("contenteditable", "true")
+        page.className = pageClassName;
+        Object.assign(page.style, {
+            // boxSizing: 'border-box',
+            // paddingTop: `${marginTopIn}in`,
+            // paddingBottom: `${marginBottomIn}in`,
+            // height: 'auto',
+            overflow: 'visible',
+            minHeight: '0',
+        });
+        return page;
+    }
+
+    const overflowsPage = (page) => page.scrollHeight > pageHeightPx;
+
+    const pages = [];
+    let currentPage = createPage();
+    sandbox.appendChild(currentPage);
+
+    // A queue (not a plain for-loop) lets us push continuation pieces of a
+    // split dialogue back in to be processed like any other element —
+    // including being split again if they're still too long.
+    const queue = elements.slice();
+    let lastCharacterText = '';
+
+    /**
+     * Attempts to split `el` (already appended as currentPage's last child,
+     * currently causing overflow) into a portion that fits on currentPage
+     * plus a "(MORE)" line, and a continuation portion that gets requeued
+     * onto a fresh page under a repeated "NAME (CONT'D)" cue.
+     * @param {HTMLElement} el
+     * @returns {boolean} True if the split was performed.
+     */
+    function attemptSplitDialogue(el) {
+        const originalText = el.textContent;
+        // Split on whitespace but keep the whitespace tokens so rejoining
+        // reproduces the original spacing exactly.
+        const tokens = originalText.split(/(\s+)/);
+
+        const moreEl = document.createElement(characterTagName);
+        moreEl.textContent = moreText;
+        moreEl.dataset.generated = 'more';
+        currentPage.appendChild(moreEl);
+
+        const fits = (n) => {
+            el.textContent = tokens.slice(0, n).join('');
+            return !overflowsPage(currentPage);
+        };
+
+        if (!fits(0)) {
+            // Even empty dialogue + "(MORE)" doesn't fit — no room to split here.
+            currentPage.removeChild(moreEl);
+            el.textContent = originalText;
+            return false;
+        }
+
+        let lo = 0;
+        let hi = tokens.length;
+        while (lo < hi) {
+            const mid = Math.ceil((lo + hi) / 2);
+            if (fits(mid)) lo = mid; else hi = mid - 1;
+        }
+
+        const firstText = tokens.slice(0, lo).join('').trim();
+        const remainderText = tokens.slice(lo).join('').trim();
+        const firstWordCount = firstText ? firstText.split(/\s+/).length : 0;
+        const remainderWordCount = remainderText ? remainderText.split(/\s+/).length : 0;
+
+        if (
+            !firstText ||
+            !remainderText ||
+            firstWordCount < minWordsBeforeSplit ||
+            remainderWordCount < minWordsAfterSplit
+        ) {
+            currentPage.removeChild(moreEl);
+            el.textContent = originalText;
+            return false;
+        }
+
+        el.textContent = firstText;
+
+        const contdEl = document.createElement(characterTagName);
+        contdEl.textContent = lastCharacterText ? `${lastCharacterText} ${contdText}` : contdText;
+        contdEl.dataset.generated = 'contd';
+
+        const continuation = document.createElement(dialogueTagName);
+        continuation.className = el.className; // carry over any authored styling hooks
+        continuation.textContent = remainderText;
+
+        pages.push(currentPage);
+        currentPage = createPage();
+        sandbox.appendChild(currentPage);
+        currentPage.appendChild(contdEl);
+
+        queue.unshift(continuation);
+        return true;
+    }
+
+    function startNewPageWith(el) {
+        pages.push(currentPage);
+        currentPage = createPage();
+        sandbox.appendChild(currentPage);
+        currentPage.appendChild(el);
+    }
+
+    while (queue.length) {
+        const el = queue.shift();
+        const tag = el.tagName.toLowerCase();
+
+        if (tag === characterTagName) {
+            lastCharacterText = el.textContent.trim();
+        }
+
+        currentPage.appendChild(el);
+        if (overflowsPage(currentPage)) {
+            console.log("DEBUG:\tSplitting Page")
+            if (tag === dialogueTagName) {
+                if (attemptSplitDialogue(el)) {
+                    console.log("DEBUG:\tSplitting Dialogue")
+                    continue; // continuation requeued; new page already has its CONT'D cue
+                }
+                if (currentPage.children.length === 1) {
+                    console.warn('DEBUG:\t paginateScreenplay -> dialogue taller than one page and unsplittable; allowing overflow.', el);
+                } else {
+                    currentPage.removeChild(el);
+                    startNewPageWith(el);
+                }
+            } else if (currentPage.children.length === 1) {
+                console.warn('DEBUG:\tpaginateScreenplay -> element taller than one page; allowing overflow.', el);
+            } else {
+                currentPage.removeChild(el);
+                startNewPageWith(el);
+            }
+        }
+
+        if (isKeepWithNext && currentPage.lastElementChild === el && isKeepWithNext(el)) {
+            const isLastOverall = queue.length === 0;
+            let nextWouldOverflow = false;
+            if (!isLastOverall) {
+                const next = queue[0];
+                currentPage.appendChild(next);
+                nextWouldOverflow = overflowsPage(currentPage);
+                currentPage.removeChild(next);
+            }
+            if (isLastOverall || nextWouldOverflow) {
+                currentPage.removeChild(el);
+                startNewPageWith(el);
+            }
+        }
+    }
+
+    pages.push(currentPage);
+    pages.forEach((page) => sandbox.removeChild(page));
+    document.body.removeChild(sandbox);
+
+    return pages;
+}
