@@ -23,21 +23,21 @@ main {
     align-items: center;
 }
 
-input {}
-
-#script-main:focus-visible{
+#script-main:focus-visible {
     outline: none;
 }
 
 .page {
+    /* background: white; */
     box-sizing: border-box;
     line-height: 1;
     display: flex;
     flex-direction: column;
     font-size: 12pt;
-    border: solid 1px black;
+    outline: solid 1px black;
+    /* border: solid 1px black; */
     width: 8.5in;
-    height:11in;
+    height: 11in;
     padding: 1in 1in 1in 1.5in;
     margin-bottom: 1rem;
 }
@@ -48,7 +48,7 @@ input {}
     }
 }
 
-*:first-child:not(.page) {
+.page>*:first-child {
     padding-top: 0;
 }
 

@@ -35,8 +35,6 @@ const DEFAULT_LEFT_MARGIN = 1.5
 const PIXELS_PER_INCH = 96
 
 let scriptWrapper = document.getElementById("script-main");
-let measuringPage = document.getElementById("measuring-page")
-let measuringElement = document.getElementById("measuring-element")
 
 /** @type {ElementSettings} */
 let defaultScriptSettings = null
@@ -220,8 +218,8 @@ function handleEnterKey(event, el, currentPage) {
     el.textContent = el.textContent.substring(0, cursorPosition)
     if (el.textContent.length === 0) el.appendChild(document.createElement('br'))
     currentPage.insertBefore(newElement, el.nextSibling)
-
-    setSelection(newElement, 0)
+    if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el)
+    setCursorPosition(newElement, 0)
 }
 
 /**
@@ -256,9 +254,11 @@ function setSelection(el, pos) {
  * @param {Element} currentPage
  */
 function changeElementTo(el, newType, currentPage) {
+    const lastCursorPosition = getCursorPosition(el)
     const newElement = newScriptElement(newType, el.textContent)
     currentPage.replaceChild(newElement, el)
-    setSelection(newElement, 0)
+
+    setCursorPosition(newElement, lastCursorPosition)
 }
 
 /**
@@ -298,7 +298,7 @@ function handleTab(event, el, currentPage) {
             else {
                 let newElement = newScriptElement(setting)
                 currentPage.insertBefore(newElement, el.nextSibling)
-                setSelection(newElement, 0)
+                setCursorPosition(newElement, 0)
             }
         }
     }
@@ -309,6 +309,8 @@ function handleTab(event, el, currentPage) {
  * @param {Element} currentPage
  */
 function handleBackspaceKey(event, el, currentPage) {
+    // TODO: fix delete page when document is empty
+    // TODO: reformat on delete whole element if height allows
     const selection = document.getSelection();
     const range = selection.getRangeAt(0);
 
@@ -335,6 +337,30 @@ function handleDeleteKey(event, child, currentPage) {
     console.log("Here!")
 }
 
+let lastFocusedElement = null;
+let lastElementLineCount = 1;
+
+function reformatScreenplay(currentElement) {
+    console.log("DEBUG:\tReformatting")
+    const lastScrollPosition = saveScrollPosition(currentElement);
+    const lastCursorPosition = getCursorPosition(currentElement)
+    let allElements = [];
+    const pages = document.getElementsByClassName("page")
+    for (const page of pages) {
+        for (let el of page.children) {
+            allElements.push(el)
+        }
+    }
+    emptyElement(scriptWrapper)
+    const newPages = paginateScreenplay(allElements)
+    for (const newPage of newPages) {
+        scriptWrapper.appendChild(newPage)
+    }
+
+    setCursorPosition(currentElement, lastCursorPosition)
+    restoreScrollPosition(currentElement, lastScrollPosition)
+}
+
 /**
  * @param {KeyboardEvent} event 
  */
@@ -344,10 +370,18 @@ function handleKeyDown(event) {
     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
     const currentPage = child.parentElement;
 
+    const range = document.createRange();
+    range.selectNodeContents(child)
+    let newLineCount = range.getClientRects().length;
+
     if (event.key === "Enter") handleEnterKey(event, child, currentPage)
     else if (event.key === "Backspace" || event.key === "Delete") handleBackspaceKey(event, child, currentPage)
     else if (event.key === "Tab") handleTab(event, child, currentPage)
     else if (event.altKey && event.key !== "Alt") handlelShortCut(event, child, currentPage)
+
+    if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child)
+    lastFocusedElement = child;
+    lastElementLineCount = newLineCount
 }
 
 /**
@@ -408,7 +442,7 @@ function downloadFDX(event) {
  * @param {Element} el 
  */
 function emptyElement(el) {
-    while (el.firstChild) el.remove(el.firstChild)
+    while (el.firstChild) el.removeChild(el.firstChild)
 }
 
 
@@ -442,7 +476,8 @@ function newBlankScript() {
         newPage.classList.add("page")
         newPage.appendChild(newSceneHeading)
         scriptWrapper.appendChild(newPage)
-        setSelection(newSceneHeading, 0)
+        setCursorPosition(newSceneHeading, 0)
+        lastFocusedElement = newSceneHeading;
     }).catch(e => console.warn(e));
 }
 
@@ -451,9 +486,119 @@ scriptWrapper.addEventListener("keydown", handleKeyDown)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("new-blank").addEventListener("click", newBlankScript)
 loadDefaultSettings();
-setSelection(scriptWrapper.children[0].children[0], 0)
+newBlankScript();
 
 // Fuck it, let's just ask Claude
+
+function restoreScrollPosition(element, state) {
+    element.scrollTop = state.element.top;
+    element.scrollLeft = state.element.left;
+
+    state.ancestors.forEach(({ node, top, left }) => {
+        node.scrollTop = top;
+        node.scrollLeft = left;
+    });
+
+    window.scrollTo(state.window.x, state.window.y);
+}
+
+/**
+ * 
+ * @param {HTMLElement} element 
+ * @returns 
+ */
+function saveScrollPosition(element) {
+    const state = {
+        element: {
+            top: element.scrollTop,
+            left: element.scrollLeft,
+        },
+        ancestors: [],
+    };
+
+    // Walk up and record scroll position of every scrollable ancestor
+    let node = element.parentElement;
+    while (node) {
+        if (node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth) {
+            state.ancestors.push({ node, top: node.scrollTop, left: node.scrollLeft });
+        }
+        node = node.parentElement;
+    }
+
+    // Also capture window scroll, in case the document itself scrolls
+    state.window = { x: window.scrollX, y: window.scrollY };
+
+    return state;
+}
+
+/**
+ * 
+ * @param {HTMLElement} element 
+ * @returns 
+ */
+function getCursorPosition(element) {
+    const selection = window.getSelection();
+
+    if (selection.rangeCount === 0) return 0;
+
+    const range = selection.getRangeAt(0);
+
+    // Make sure the selection is actually inside our element
+    if (!element.contains(range.startContainer)) return 0;
+
+    // Create a range from the start of the element to the start of the selection
+    const preCaretRange = document.createRange();
+    preCaretRange.selectNodeContents(element);
+    preCaretRange.setEnd(range.startContainer, range.startOffset);
+
+    // The length of that range's text content is the global cursor offset
+    return preCaretRange.toString().length;
+}
+
+/**
+ * 
+ * @param {HTMLElement} element 
+ * @param {number} position 
+ */
+function setCursorPosition(element, position) {
+    element.focus();
+
+    const range = document.createRange();
+    const selection = window.getSelection();
+
+    // Walk through text nodes to find the one containing the target position
+    let currentNode = null;
+    let currentOffset = 0;
+    let remaining = position;
+
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const length = node.textContent.length;
+
+        if (remaining <= length) {
+            currentNode = node;
+            currentOffset = remaining;
+            break;
+        }
+
+        remaining -= length;
+    }
+
+    if (currentNode) {
+        range.setStart(currentNode, currentOffset);
+        range.collapse(true);
+    } else {
+        // Fallback: position not found (e.g. position exceeds content length)
+        // Place cursor at the end of the element
+        range.selectNodeContents(element);
+        range.collapse(false);
+    }
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
 
 /**
  * @callback KeepWithNextPredicate
