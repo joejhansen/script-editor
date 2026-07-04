@@ -1,10 +1,11 @@
 6/22/26
 TODO: add newlines to compiled FDX because the whole <Content> section is inline
 TODO: keep script notes
-TODO: pick a pdf package because it seems like making one myself would be a nightmare
+ABANDONED: pick a pdf package because it seems like making one myself would be a nightmare
     https://www.npmjs.com/package/jspdf
     https://www.npmjs.com/package/pdfmake
     https://www.npmjs.com/package/html2pdf.js
+    PSYCHE, we're doing HTML -> LaTeX -> PDF
 TODO: pick a copyleft license because fuck paying, logins, analytics, any other bullshit just to make art
 TODO: make this a PWA for download and put on gh pages
 TODO: Figure out a unique name because "Lib(re)Script" is either already taken and/or refers to scripting languages
@@ -27,5 +28,9 @@ TODO: Ctrl+A -> Delete should leave behind a scene heading
     just if the document is blank at any time really
 
 7/2/2026
-TODO: refactor claude code
+DONE: refactor claude code
 TODO: redo key input handling so that it works with pagination
+
+7/3/26
+TODO: Compile a TeX solution to wasm for conversion of html to TeX to pdf
+    https://github.com/SwiftLaTeX/SwiftLaTeX

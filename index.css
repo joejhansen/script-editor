@@ -25,6 +25,10 @@ main {
 
 input {}
 
+#script-main:focus-visible{
+    outline: none;
+}
+
 .page {
     box-sizing: border-box;
     line-height: 1;
