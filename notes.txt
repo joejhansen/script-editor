@@ -24,13 +24,20 @@ TODO: better undo/redo tree
 
 6/25/26
 TODO: title page stuff
-TODO: Ctrl+A -> Delete should leave behind a scene heading
+DONE: Ctrl+A -> Delete should leave behind a scene heading
     just if the document is blank at any time really
 
 7/2/2026
 DONE: refactor claude code
-TODO: redo key input handling so that it works with pagination
+DONE: redo key input handling so that it works with pagination
 
 7/3/26
 TODO: Compile a TeX solution to wasm for conversion of html to TeX to pdf
     https://github.com/SwiftLaTeX/SwiftLaTeX
+
+7/13/26
+DONE: optimize reformatScreenplay because it's slow after a couple dozen pages.
+DONE: Properly split dialogue with (MORE) and (CONT'D)
+    TODO: Make sure this works with parentheticals
+DONE: Fix setCursorPosition on reformatScreenplay with split dialogues
+TODO: Auto-completes for character names, headings (int/ext, times of day), transitions
