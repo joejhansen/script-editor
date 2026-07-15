@@ -44,7 +44,7 @@ const HTML_TAG_NAMES = [
     "outline3",
     "note"
 ]
-const DEFAULT_EXTENSIONS = [
+const DEFAULT_EXTENSIONS = new Set([
     "(V.O.)",
     "(O.S.)",
     "(O.C.)",
@@ -52,9 +52,10 @@ const DEFAULT_EXTENSIONS = [
     "(SUBTITLE)",
     "(TEXT)",
     "(pre-lap)",
-]
-const DEFAULT_SCENE_INTROS = ["INT", "EXT", "I/E"];
-const DEFAULT_TIMES_OF_DAY = [
+]);
+const DEFAULT_SCENE_INTROS = new Set(["INT", "EXT", "I/E"]);
+const SCENE_INTRO_REGEX = /^(\w{1,3}|i\/{1,2})(?!.)/i
+const DEFAULT_TIMES_OF_DAY = new Set([
     "DAY",
     "NIGHT",
     "AFTERNOON",
@@ -69,8 +70,9 @@ const DEFAULT_TIMES_OF_DAY = [
     "DUSK",
     "SAME",
     "SAME TIME",
-];
-const DEFAULT_TRANSITIONS = [
+]);
+const TIME_OF_DAY_REGEX = /-\s(?:\w* *)+$/i
+const DEFAULT_TRANSITIONS = new Set([
     "CUT TO:",
     "FADE IN:",
     "FADE OUT.",
@@ -83,7 +85,9 @@ const DEFAULT_TRANSITIONS = [
     "SMASH CUT TO:",
     "CUT TO BLACK.",
     "TIME CUT:",
-];
+]);
+const SMART_TYPE_TAGS = ["sceneheading", "character", "transition"]
+const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward"]
 
 let scriptWrapper = document.getElementById("script-main");
 
@@ -97,8 +101,10 @@ let originalXML = null
 let lastFocusedElement = null;
 let lastElementLineCount = 1;
 
-/** @type {string[]} */
-let characterList = [];
+/** @type {Set<string>} */
+let characterSet = new Set();
+let lastCharacterUsed = "";
+let secondLastCharacterUsed = "";
 
 /**
  * @typedef {Object} ElementSetting
@@ -256,6 +262,7 @@ function handleFileInput(event) {
         }
         originalXML = doc;
         scriptSettings = LoadElSettings(doc)
+        characterSet = getCharacterInfo(doc)
         const screenplayPages = paginateScreenplay(XMLtoHTML(doc));
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
@@ -478,8 +485,54 @@ function handleBeforeInput(event) {
         handleBackspaceKey(event, child, currentPage)
     }
 }
+/**
+ * 
+ * @param {string} inputStr 
+ * @param {Set<string>} autocompleteSet
+ * @returns {string} Substring that best matches the first matching string to complete the input.
+ */
+function completeStringFromSet(inputStr, autocompleteSet) {
+    for (const option of autocompleteSet) {
+        if (inputStr === option.substring(0, inputStr.length)) return option.substring(inputStr.length)
+    }
+    return "";
+}
+/**
+ * Autocomplete for character names, headings, and transitions
+ * @param {InputEvent} event 
+ * @param {HTMLElement} currentEl 
+ * @param {HTMLElement} currentPage 
+ */
+function handleSmartType(event, currentEl, currentPage) {
+    if (!SMART_TYPE_TAGS.includes(currentEl.tagName.toLowerCase())) return
+    const maybeSpan = currentEl.getElementsByTagName("span")
+    if (maybeSpan) currentEl.removeChild(maybeSpan)
 
-const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward"]
+    let newSpan = document.createElement("span")
+    newSpan.classList.add("autocomplete")
+    let res = ""
+    switch (currentEl.tagName) {
+        case "CHARACTER":
+            if (!currentEl.textContent && secondLastCharacterUsed) res = secondLastCharacterUsed
+            else res = completeStringFromSet(currentEl.textContent, characterSet)
+            break;
+        case "TRANSITION":
+            res = completeStringFromSet(currentEl.textContent, DEFAULT_TRANSITIONS)
+            break;
+        case "SCENEHEADING":
+            if (SCENE_INTRO_REGEX.text(currentEl.textContent)) { // we assume we're in the int/ext portion
+                res = completeStringFromSet(currentEl.textContent, DEFAULT_SCENE_INTROS)
+            } else if (TIME_OF_DAY_REGEX.test(currentEl.textContent)) {
+                const lastChars;
+                res = completeStringFromSet(lastChars, DEFAULT_TIMES_OF_DAY)
+            }
+            break;
+        default:
+            break;
+    }
+    newSpan.textContent = res;
+    currentEl.appendChild(newSpan)
+}
 /**
  * 
  * @param {InputEvent} event 
@@ -492,7 +545,14 @@ function handleInput(event) {
     const range = document.createRange();
     range.selectNodeContents(child)
     let newLineCount = range.getClientRects().length;
-
+    let lastCursorPosition = getCursorPosition(child)
+    handleSmartType(event, child, currentPage);
+    setCursorPosition(child, lastCursorPosition)
+    // if (child.tagName === "CHARACTER"){
+    //     // if (secondLastCharacterUsed) 
+    //     // child.place
+    //     // currentPage.placeh
+    // }
     if (scriptWrapper.childElementCount === 1 && !scriptWrapper.firstChild.firstChild) newBlankScript() // edge case where all elements are empty with <br>
     else {
         if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child, currentPage)
@@ -599,6 +659,29 @@ function newBlankScript() {
         setCursorPosition(newSceneHeading, 0)
         lastFocusedElement = newSceneHeading;
     }).catch(e => console.warn(e));
+}
+
+function replaceXMLContent() { }
+/**
+ * 
+ * @param {Document} doc 
+ * @returns {string[]}
+ */
+function getCharacterInfo(doc) {
+
+    let res = new Set();
+    const charElements = doc.getElementsByTagName("Character")
+    for (const char of charElements) {
+        res.add(char.textContent)
+    }
+    return res
+}
+/**
+ * 
+ * @param {string} str 
+ */
+function addToCharacterSet(str) {
+    characterSet.add(str)
 }
 
 document.getElementById("script-upload").addEventListener("change", handleFileInput)

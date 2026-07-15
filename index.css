@@ -116,7 +116,12 @@ character,
 sceneheading {
     text-transform: uppercase;
 }
-continued{
+
+continued {
     padding-left: 2in;
     padding-right: 3in;
+}
+
+.autocomplete {
+    color: gray
 }
