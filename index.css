@@ -123,5 +123,6 @@ continued {
 }
 
 .autocomplete {
-    color: gray
+    color: gray;
+    user-select: none;
 }

@@ -53,7 +53,7 @@ const DEFAULT_EXTENSIONS = new Set([
     "(TEXT)",
     "(pre-lap)",
 ]);
-const DEFAULT_SCENE_INTROS = new Set(["INT", "EXT", "I/E"]);
+const DEFAULT_SCENE_INTROS = new Set(["INT.", "EXT.", "I/E"]);
 const SCENE_INTRO_REGEX = /^(\w{1,3}|i\/{1,2})(?!.)/i
 const DEFAULT_TIMES_OF_DAY = new Set([
     "DAY",
@@ -86,16 +86,16 @@ const DEFAULT_TRANSITIONS = new Set([
     "CUT TO BLACK.",
     "TIME CUT:",
 ]);
-const SMART_TYPE_TAGS = ["sceneheading", "character", "transition"]
+const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
 const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward"]
-
+const ARROW_KEYS = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"]
 let scriptWrapper = document.getElementById("script-main");
 
 /** @type {ElementSettings | null} */
 let defaultScriptSettings = null
 /** @type {ElementSettings | null} */
 let scriptSettings = null
-/** @type {Document} */
+/** @type {Document | null} */
 let originalXML = null
 /** @type {HTMLElement | null} */
 let lastFocusedElement = null;
@@ -123,7 +123,7 @@ let secondLastCharacterUsed = "";
  * @property {number} RightIndent
  * @property {number} SpaceBefore
  * @property {number} Spacing
- * @property {bool} StartsNewPage
+ * @property {boolean} StartsNewPage
  * @property {string} PaginateAs
  * @property {string} ReturnKey
  * @property {string} Shortcut
@@ -183,9 +183,7 @@ function LoadElSetting(el) {
  * @returns {ElementSettings}
  */
 function LoadElSettings(doc) {
-    /**
-     * @type {ElementSettings}
-    */
+    /** @type {ElementSettings} */
     let res = {};
     let settings = doc.getElementsByTagName("ElementSettings")
     for (let setting of settings) {
@@ -250,7 +248,6 @@ function parseXMLString(xmlString) {
 
 /**
  * @param {Event} event 
- * @returns 
  */
 function handleFileInput(event) {
     event.preventDefault()
@@ -278,11 +275,13 @@ function handleFileInput(event) {
 function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
     const cursorPosition = document.getSelection().anchorOffset
-    const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.toLowerCase(), el.textContent.substring(cursorPosition))
+    if (el.firstElementChild) { if (el.firstElementChild.classList.contains("autocomplete")) { el.removeChild(el.firstElementChild) } }
+    const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.replace(/\s/g, "").toLowerCase(), el.textContent.substring(cursorPosition))
     el.textContent = el.textContent.substring(0, cursorPosition)
     if (el.textContent.length === 0) el.appendChild(document.createElement('br'))
     currentPage.insertBefore(newElement, el.nextSibling)
     if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
+
     setCursorPosition(newElement, 0)
 }
 
@@ -313,9 +312,10 @@ function setSelection(el, pos) {
 }
 
 /**
- * @param {Element} el 
+ * @param {HTMLElement} el 
  * @param {string} newType 
- * @param {Element} currentPage
+ * @param {HTMLElement} currentPage
+ * @return {HTMLElement}
  */
 function changeElementTo(el, newType, currentPage) {
     const lastCursorPosition = getCursorPosition(el)
@@ -323,6 +323,7 @@ function changeElementTo(el, newType, currentPage) {
     currentPage.replaceChild(newElement, el)
 
     setCursorPosition(newElement, lastCursorPosition)
+    return newElement
 }
 
 /**
@@ -331,10 +332,12 @@ function changeElementTo(el, newType, currentPage) {
  * @param {Element} currentPage
  */
 function handlelShortCut(event, el, currentPage) {
-    event.preventDefault();
     if (event.key.length > 1 || isNaN(parseInt(event.key))) return;
     for (const setting in scriptSettings) {
-        if (scriptSettings[setting].Shortcut === event.key) changeElementTo(el, setting, currentPage)
+        if (scriptSettings[setting].Shortcut === event.key) {
+            event.preventDefault();
+            changeElementTo(el, setting, currentPage)
+        }
     }
 }
 
@@ -346,6 +349,15 @@ function handlelShortCut(event, el, currentPage) {
 function handleTab(event, el, currentPage) {
     event.preventDefault();
 
+    if (el.textContent && el.firstElementChild) {
+        // el.textContent+=el.firstElementChild.textContent; // for whatever goddam reason, doing this ALSO removes the span, which will make the subsequence Node.removeChild call fail for having a null arg
+        const completeText = el.firstElementChild.textContent
+        el.removeChild(el.firstElementChild);
+        el.textContent += completeText
+        setCursorPosition(el, el.textContent.length)
+        // if (el.tagName === "CHARACTER") { console.log("here");secondLastCharacterUsed = lastCharacterUsed; lastCharacterUsed = el.textContent }
+        return;
+    }
     let newElShortcut = scriptSettings[el.tagName.toLowerCase()].Shortcut;
     if (event.shiftKey) {
         if (newElShortcut === '0') newElShortcut = ":";
@@ -359,7 +371,7 @@ function handleTab(event, el, currentPage) {
 
     for (const setting in scriptSettings) {
         if (scriptSettings[setting].Shortcut === newElShortcut) {
-            if (el.textContent.length === 0) changeElementTo(el, setting, currentPage)
+            if (!el.textContent) { el = changeElementTo(el, setting, currentPage); handleAutocomplete(event, el, currentPage) }
             else {
                 let newElement = newScriptElement(setting)
                 currentPage.insertBefore(newElement, el.nextSibling)
@@ -368,13 +380,14 @@ function handleTab(event, el, currentPage) {
         }
     }
 }
+
 /**
  * @param {InputEvent} event 
  * @param {Element} el 
  * @param {Element} currentPage
  */
-function handleBackspaceKey(event, el, currentPage) {
-    console.log("DEBUG:\tHandling deletions")
+function handleDeletion(event, el, currentPage) {
+    // console.log("DEBUG:\tHandling deletions")
     // TODO: fix delete page when document is empty
     const selection = document.getSelection();
     const range = selection.getRangeAt(0);
@@ -401,8 +414,12 @@ function handleDeleteKey(event, child, currentPage) {
     console.log("Here!")
 }
 
-
-
+/**
+ * 
+ * @param {HTMLElement} child 
+ * @param {HTMLElement} parent 
+ * @returns {number}
+ */
 function getChildElementIndex(child, parent) {
     let res = -1;
     for (let i = 0; i < parent.childElementCount; i++) {
@@ -411,9 +428,13 @@ function getChildElementIndex(child, parent) {
     return res;
 }
 
-
+/**
+ * 
+ * @param {HTMLElement} currentElement 
+ * @param {HTMLElement} currentPage 
+ */
 function reformatScreenplay(currentElement, currentPage) {
-    console.log("DEBUG:\tReformatting")
+    // console.log("DEBUG:\tReformatting")
     const lastScrollPosition = saveScrollPosition(currentElement);
     const lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
@@ -443,6 +464,15 @@ function reformatScreenplay(currentElement, currentPage) {
     setCursorPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastCursorPosition)
     restoreScrollPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastScrollPosition)
 }
+/**
+ * @param {KeyboardEvent} e 
+ * @param {HTMLElement} el 
+ * @param {HTMLElement} page 
+ */
+function handleArrowKeysUp(e, el, page) {
+    if (lastFocusedElement !== el && lastFocusedElement.firstElementChild) lastFocusedElement.removeChild(lastFocusedElement.firstElementChild)
+    lastFocusedElement = el;
+}
 
 /**
  * @param {KeyboardEvent} event 
@@ -452,23 +482,31 @@ function handleKeyDown(event) {
     const thisNode = document.getSelection().anchorNode;
     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
     const currentPage = child.parentElement;
-
-    // const range = document.createRange();
-    // range.selectNodeContents(child)
-    // let newLineCount = range.getClientRects().length;
-
-    // if (event.key === "Enter") handleEnterKey(event, child, currentPage)
-    // if (event.key === "Backspace" || event.key === "Delete") handleBackspaceKey(event, child, currentPage)
     if (event.key === "Tab") handleTab(event, child, currentPage)
-    else if (event.ctrlKey && event.key !== "control") handlelShortCut(event, child, currentPage)
-
-    // if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child)
-    // // else if (event.key === "Backspace" && lastFocusedElement !== child) reformatScreenplay(child)
-    // lastFocusedElement = child;
-    // lastElementLineCount = newLineCount
+    else if (event.ctrlKey && event.key !== "Control") handlelShortCut(event, child, currentPage)
 }
 /**
- * 
+ * @param {KeyboardEvent} event 
+ */
+function handleKeyUp(event) {
+    event.stopPropagation();
+    const thisNode = document.getSelection().anchorNode;
+    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
+    const currentPage = child.parentElement;
+    if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage)
+}
+/**
+ * @param {FocusEvent} event 
+ */
+function handleFocusOut(event) {
+    event.stopPropagation();
+    const thisNode = document.getSelection().anchorNode;
+    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
+    const currentPage = child.parentElement;
+
+}
+
+/**
  * @param {InputEvent} event 
  */
 function handleBeforeInput(event) {
@@ -482,71 +520,98 @@ function handleBeforeInput(event) {
         const thisNode = document.getSelection().anchorNode;
         const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
         const currentPage = child.parentElement;
-        handleBackspaceKey(event, child, currentPage)
+        handleDeletion(event, child, currentPage)
     }
 }
+
 /**
  * 
  * @param {string} inputStr 
+ * @param {string} option 
+ * @returns {boolean}
+ */
+function substringAtStart(inputStr, option) {
+    return inputStr.toLowerCase() === option.substring(0, inputStr.length).toLowerCase()
+}
+
+/**
+ * @param {string} inputStr 
  * @param {Set<string>} autocompleteSet
- * @returns {string} Substring that best matches the first matching string to complete the input.
+ * @returns {[string, string]} Substring that best matches the first matching string to complete the input.
  */
 function completeStringFromSet(inputStr, autocompleteSet) {
+    if (!inputStr) return "";
     for (const option of autocompleteSet) {
-        if (inputStr === option.substring(0, inputStr.length)) return option.substring(inputStr.length)
+        if (substringAtStart(inputStr, option)) return [option, option.substring(inputStr.length)]
     }
     return "";
 }
+
+let lastAutocomplete = "";
 /**
  * Autocomplete for character names, headings, and transitions
  * @param {InputEvent} event 
  * @param {HTMLElement} currentEl 
  * @param {HTMLElement} currentPage 
  */
-function handleSmartType(event, currentEl, currentPage) {
-    if (!SMART_TYPE_TAGS.includes(currentEl.tagName.toLowerCase())) return
-    const maybeSpan = currentEl.getElementsByTagName("span")
-    if (maybeSpan) currentEl.removeChild(maybeSpan)
+function handleAutocomplete(event, currentEl, currentPage) {
+
+    if (!AUTOCOMPLETE_TAGS.includes(currentEl.tagName.toLowerCase())) return
+    const maybeSpan = currentEl.getElementsByClassName("autocomplete")
+    if (maybeSpan.length) currentEl.removeChild(maybeSpan[0])
+
+    if (!currentEl.textContent && !currentEl.firstChild) {
+        currentEl.appendChild(document.createElement('br'));
+        return;
+    }
 
     let newSpan = document.createElement("span")
     newSpan.classList.add("autocomplete")
+    // newSpan.setAttribute("userselect")
     let res = ""
     switch (currentEl.tagName) {
-        case "CHARACTER":
-            if (!currentEl.textContent && secondLastCharacterUsed) res = secondLastCharacterUsed
-            else res = completeStringFromSet(currentEl.textContent, characterSet)
+        case "CHARACTER": // this is fucking killing me omg
+            // console.log("DEBUG:\tIn character autocomplete")
+            [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, characterSet)
+            // if (!currentEl.textContent) res = secondLastCharacterUsed ? secondLastCharacterUsed : res;
+            // else if (lastAutocomplete && substringAtStart(currentEl.textContent, lastAutocomplete)) res = lastAutocomplete.substring(currentEl.textContent.length)
+            // else[lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, characterSet)
             break;
         case "TRANSITION":
-            res = completeStringFromSet(currentEl.textContent, DEFAULT_TRANSITIONS)
+            [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, DEFAULT_TRANSITIONS)
             break;
         case "SCENEHEADING":
-            if (SCENE_INTRO_REGEX.text(currentEl.textContent)) { // we assume we're in the int/ext portion
-                res = completeStringFromSet(currentEl.textContent, DEFAULT_SCENE_INTROS)
+            if (SCENE_INTRO_REGEX.test(currentEl.textContent)) { // we assume we're in the int/ext portion
+                [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, DEFAULT_SCENE_INTROS)
             } else if (TIME_OF_DAY_REGEX.test(currentEl.textContent)) {
-                const lastChars;
-                res = completeStringFromSet(lastChars, DEFAULT_TIMES_OF_DAY)
+                [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent.substring(currentEl.textContent.lastIndexOf('-') + 1).trim(), DEFAULT_TIMES_OF_DAY)
             }
             break;
         default:
             break;
     }
-    newSpan.textContent = res;
-    currentEl.appendChild(newSpan)
+    if (res) {
+        newSpan.textContent = res;
+        currentEl.appendChild(newSpan)
+    }
 }
 /**
- * 
  * @param {InputEvent} event 
  */
 function handleInput(event) {
     const thisNode = document.getSelection().anchorNode;
-    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
+    const child = thisNode.nodeType === Node.TEXT_NODE ?
+        thisNode.parentElement.tagName === "SPAN" ?
+            thisNode.parentElement.parentElement
+            : thisNode.parentElement
+        : thisNode;
     const currentPage = child.parentElement;
-
     const range = document.createRange();
     range.selectNodeContents(child)
     let newLineCount = range.getClientRects().length;
     let lastCursorPosition = getCursorPosition(child)
-    handleSmartType(event, child, currentPage);
+
+    handleAutocomplete(event, child, currentPage);
     setCursorPosition(child, lastCursorPosition)
     // if (child.tagName === "CHARACTER"){
     //     // if (secondLastCharacterUsed) 
@@ -558,6 +623,8 @@ function handleInput(event) {
         if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child, currentPage)
         else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage)
     }
+
+    // if (lastFocusedElement !== child && lastFocusedElement.tagName)
 
     lastFocusedElement = child;
     lastElementLineCount = newLineCount
@@ -625,7 +692,6 @@ function emptyElement(el) {
     while (el.firstChild) el.removeChild(el.firstChild)
 }
 
-
 async function loadDefaultSettings() {
     if (defaultScriptSettings === null) {
         fetch("DefaultSettings.xml")
@@ -657,7 +723,7 @@ function newBlankScript() {
         newPage.appendChild(newSceneHeading)
         scriptWrapper.appendChild(newPage)
         setCursorPosition(newSceneHeading, 0)
-        lastFocusedElement = newSceneHeading;
+        // lastFocusedElement = newSceneHeading;
     }).catch(e => console.warn(e));
 }
 
@@ -686,15 +752,22 @@ function addToCharacterSet(str) {
 
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
 scriptWrapper.addEventListener("keydown", handleKeyDown)
+// scriptWrapper.addEventListener("focusout", handleFocusOut)
+scriptWrapper.addEventListener("keyup", handleKeyUp)
 scriptWrapper.addEventListener("input", handleInput)
 scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
+
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("new-blank").addEventListener("click", newBlankScript)
 loadDefaultSettings();
 newBlankScript();
 
 // Fuck it, let's just ask Claude
-
+/**
+ * 
+ * @param {HTMLElement} element 
+ * @param {ScrollPosition} state 
+ */
 function restoreScrollPosition(element, state) {
     element.scrollTop = state.element.top;
     element.scrollLeft = state.element.left;
@@ -706,11 +779,26 @@ function restoreScrollPosition(element, state) {
 
     window.scrollTo(state.window.x, state.window.y);
 }
+/**
+ * @typedef {object} ScrollElement
+ * @property {number} top
+ * @property {number} left
+ */
+/**
+ * @typedef {object} Ancestor
+ * @property {HTMLElement} node
+ * @property {number} top
+ * @property {number} left
+ */
+/** 
+ *  @typedef {object} ScrollPosition
+ *  @property {ScrollElement} element
+ *  @property {Ancestor[]} ancestors
+ */
 
 /**
- * 
  * @param {HTMLElement} element 
- * @returns 
+ * @returns {ScrollPosition}
  */
 function saveScrollPosition(element) {
     const state = {
@@ -737,9 +825,8 @@ function saveScrollPosition(element) {
 }
 
 /**
- * 
  * @param {HTMLElement} element 
- * @returns 
+ * @returns {number}
  */
 function getCursorPosition(element) {
     const selection = window.getSelection();
@@ -761,7 +848,6 @@ function getCursorPosition(element) {
 }
 
 /**
- * 
  * @param {HTMLElement} element 
  * @param {number} position 
  */
@@ -803,6 +889,7 @@ function setCursorPosition(element, position) {
 
     selection.removeAllRanges();
     selection.addRange(range);
+    lastFocusedElement = element
 }
 
 /**
@@ -849,7 +936,6 @@ function createPage(options) {
     return page;
 }
 
-// probably put this back into the big function so I'm not passing things around as much
 /**
  * @param {HTMLElement} el 
  * @param {HTMLElement[]} pages 
@@ -865,10 +951,11 @@ function startNewPageWith(el, pages, currentPage, sandbox, options) {
     currentPage.appendChild(el);
     return currentPage
 }
+
 /**
  * @param {HTMLElement} page 
  * @param {number} pageHeightPx 
- * @returns 
+ * @returns {boolean}
  */
 const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
 
