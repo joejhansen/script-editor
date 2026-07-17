@@ -91,6 +91,8 @@ const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
 const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward"]
 const ARROW_KEYS = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"]
 let scriptWrapper = document.getElementById("script-main");
+/** @type {HTMLInputElement} */
+let fileNameInput = document.getElementById("file-name")
 
 /** @type {ElementSettings | null} */
 let defaultScriptSettings = null
@@ -201,15 +203,23 @@ function LoadElSettings(doc) {
  */
 function EltoHTML(el) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
-    let elText = "";
+    let elInnerHTML = "";
     for (let tag of el.children) if (tag.tagName === "Text") {
-        elText += tag.textContent;
+        if (tag.hasAttribute("Style")) {
+            const styles = tag.getAttribute("Style").toLowerCase().replace('+', ' ').replace("allcaps", '')
+            if (styles) {
+                elInnerHTML += `<span class="${styles}">${tag.textContent}</span>`
+            } else {
+                elInnerHTML += tag.textContent;
+            }
+        } else {
+            elInnerHTML += tag.textContent;
+        }
     }
-    if (elType === "parenthetical") elText = elText.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
+    if (elType === "parenthetical") elInnerHTML = elInnerHTML.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
     let newEl = document.createElement(elType)
-    newEl.textContent = elText;
+    newEl.innerHTML = elInnerHTML;
     return newEl
-    // return `<${elType} class="screenplay-element">${elText}</${elType}>`
 }
 
 /**
@@ -254,6 +264,7 @@ function parseXMLString(xmlString) {
  */
 function handleFileInput(event) {
     event.preventDefault()
+    /** @type {File} */
     const file = event.target.files?.[0]
     if (!file) console.warn("DEBUG:\t handleFileInput -> Something went wrong loading file")
     parseXMLFromFile(file).then(doc => {
@@ -267,26 +278,82 @@ function handleFileInput(event) {
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
         }
+        console.log(file)
+        fileNameInput.value = file.name.substring(0, file.name.length - 4)
     }).catch(e => console.warn(e))
 }
 
+function ensureLineHasContent(el) {
+    // Remove any stray <br> if the element actually has real content
+    // (can happen after extractContents/pruning leaves one behind)
+    if (el.childElementCount > 1) {
+        el.querySelectorAll('br').forEach(br => br.remove())
+    }
+    // Add exactly one <br> only if there's truly nothing left
+    if (!el.childElementCount && !el.textContent) {
+        // console.log(el)
+        el.appendChild(document.createElement('br'))
+    }
+}
+
+function pruneEmptyInlineNodes(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+    const toCheck = []
+    let node
+    while ((node = walker.nextNode())) toCheck.push(node)
+    // walk bottom-up isn't strictly needed here since these are leaf spans,
+    // but reverse order is safer if you ever nest spans
+    for (let i = toCheck.length - 1; i >= 0; i--) {
+        const n = toCheck[i]
+        if (n.textContent === "" && n.tagName !== "BR") {
+            n.remove()
+        }
+    }
+}
+
 /**
+ * TODO: Fix caret dissapearing on entering a new element on Firefox
  * @param {InputEvent} event 
  * @param {Element} el
  * @param {Element} currentPage
  */
 function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
-    const cursorPosition = document.getSelection().anchorOffset
+
     if (el.dataset.suggestion) { el.dataset.suggestion = ""; }
     if (el.tagName === "CHARACTER") addToCharacterSet(el.textContent)
-    const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.replace(/\s/g, "").toLowerCase(), el.textContent.substring(cursorPosition))
-    el.textContent = el.textContent.substring(0, cursorPosition)
-    if (el.textContent.length === 0) el.appendChild(document.createElement('br'))
+
+    const selection = window.getSelection()
+    const cursorRange = selection.getRangeAt(0)
+
+    const tailRange = document.createRange()
+    tailRange.setStart(cursorRange.startContainer, cursorRange.startOffset)
+    if (el.lastChild) {
+        tailRange.setEndAfter(el.lastChild)
+    } else {
+        tailRange.setEnd(el, el.childNodes.length)
+    }
+
+    // Detach the live selection from `el` BEFORE mutating its DOM.
+    // extractContents() below splits/removes nodes that el's current
+    // selection is anchored into; leaving the selection live during that
+    // mutation is what leaves Firefox's caret state broken afterward.
+    // selection.removeAllRanges()
+
+    const tailFragment = tailRange.extractContents()
+
+    const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.replace(/\s/g, "").toLowerCase())
+    newElement.innerHTML = ""
+    newElement.appendChild(tailFragment)
+
+    pruneEmptyInlineNodes(newElement)
+    ensureLineHasContent(el)
+    ensureLineHasContent(newElement)
+
     currentPage.insertBefore(newElement, el.nextSibling)
     if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
-
     setCursorPosition(newElement, 0)
+    console.log(newElement)
 }
 
 /**
@@ -405,13 +472,14 @@ function handleDeletion(event, el, currentPage) {
     const cursorAtStart = range.startOffset === 0 || range.startOffset === 1;
     const nothingSelected = selection.isCollapsed;
     const elementIsEmpty = !el.textContent.trim();
+    // console.log(isFirstElement, cursorAtStart, nothingSelected, elementIsEmpty, DELETE_INPUT_TYPES.includes(event.inputType))
+    // console.log(allSelected)
     if (isFirstElement && cursorAtStart && nothingSelected && elementIsEmpty && DELETE_INPUT_TYPES.includes(event.inputType)) {
         event.preventDefault()
     } else if (allSelected) {
         event.preventDefault();
         newBlankScript();
     }
-
 }
 
 function handleDeleteKey(event, child, currentPage) {
@@ -474,6 +542,30 @@ function reformatScreenplay(currentElement, currentPage) {
         restoreScrollPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastScrollPosition)
     }
 }
+
+/**
+ * 
+ * @param {Node} node
+ * @returns {[HTMLElement, HTMLElement]} 
+ */
+function getScriptElementAndCurrentPage(node) {
+    let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (scriptEl.tagName === "ARTICLE") {
+        if (scriptEl.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
+            newBlankScript()
+            return [scriptWrapper.firstChild, scriptWrapper.firstChild.firstChild]
+        } else {
+            return [scriptWrapper.firstChild, scriptWrapper.firstChild.firstChild]
+        }
+    }
+    else {
+        while (!HTML_TAG_NAMES.includes(scriptEl.tagName.toLowerCase())) {
+            scriptEl = scriptEl.parentElement
+        }
+        return [scriptEl, scriptEl.parentElement]
+    };
+}
+
 /**
  * @param {KeyboardEvent} e 
  * @param {HTMLElement} el 
@@ -489,9 +581,7 @@ function handleArrowKeysUp(e, el, page) {
  */
 function handleKeyDown(event) {
     event.stopPropagation();
-    const thisNode = document.getSelection().anchorNode;
-    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-    const currentPage = child.parentElement;
+    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
     if (event.key === "Tab") handleTab(event, child, currentPage)
     else if (event.ctrlKey && event.key !== "Control") handleShortCut(event, child, currentPage)
 }
@@ -500,9 +590,8 @@ function handleKeyDown(event) {
  */
 function handleKeyUp(event) {
     event.stopPropagation();
-    const thisNode = document.getSelection().anchorNode;
-    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-    const currentPage = child.parentElement;
+    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
+
     if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage)
 }
 /**
@@ -521,15 +610,10 @@ function handleFocusOut(event) {
  */
 function handleBeforeInput(event) {
     if (event.inputType === "insertParagraph") {
-        const thisNode = document.getSelection().anchorNode;
-        const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-        const currentPage = child.parentElement;
+        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleEnterKey(event, child, currentPage)
-
     } else if (DELETE_INPUT_TYPES.includes(event.inputType)) {
-        const thisNode = document.getSelection().anchorNode;
-        const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-        const currentPage = child.parentElement;
+        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleDeletion(event, child, currentPage)
     }
 }
@@ -596,13 +680,7 @@ function handleAutocomplete(event, currentEl, currentPage) {
  * @param {InputEvent} event 
  */
 function handleInput(event) {
-    const thisNode = document.getSelection().anchorNode;
-    const child = thisNode.nodeType === Node.TEXT_NODE ?
-        thisNode.parentElement.tagName === "SPAN" ?
-            thisNode.parentElement.parentElement
-            : thisNode.parentElement
-        : thisNode;
-    const currentPage = child.parentElement;
+    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
     const range = document.createRange();
     range.selectNodeContents(child)
     let newLineCount = range.getClientRects().length;
@@ -611,7 +689,10 @@ function handleInput(event) {
     handleAutocomplete(event, child, currentPage);
     setCursorPosition(child, lastCursorPosition)
 
-    if (scriptWrapper.childElementCount === 1 && !scriptWrapper.firstChild.firstChild) newBlankScript() // edge case where all elements are empty with <br>
+    if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
+        console.log("DEBUG:\tTrying to delete an empty script")
+        newBlankScript()
+    } // edge case where all elements are empty with <br>
     else {
         if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child, currentPage)
         else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage)
@@ -640,13 +721,59 @@ function HTMLtoFDX(doc, el) {
     let paraEl = doc.createElement("Paragraph")
     const htmlTag = el.tagName.toLowerCase();
     paraEl.setAttribute("Type", tagToFDXType(htmlTag))
-    let textEl = doc.createElement("Text")
-    if (htmlTag === "parenthetical") textEl.textContent = `(${el.textContent})`;
-    else textEl.textContent = el.textContent;
+    const newTextEls = [];
+    for (let [i, subNode] of el.childNodes.entries()) {
+        let textEl = doc.createElement("Text")
+        if (subNode.nodeType === 1) { // a span
+            console.log(subNode)
+            textEl.setAttribute("Style", [...subNode.classList].map(str => str.at(0).toUpperCase() + str.substring(1)).join('+'))
+            for (let attr of ["AdornmentStyle", "Background", "Color", "Font", "RevisionID", "Size"]) {
+                textEl.setAttribute(attr, scriptSettings[htmlTag][attr])
+            }
+        }
+        textEl.textContent = subNode.textContent
+        if (htmlTag === "parenthetical") {
+            let startingParen = null;
+            let endingParen = null;
+            if (i === 0) {
+                if (subNode.nodeType === 1) {
+                    startingParen = doc.createElement("Text")
+                    startingParen.textContent = '('
+                    newTextEls.push(startingParen)
+                } else {
+                    textEl.textContent = `(${textEl.textContent}`
+                }
+            }
+            if (i === subNode.childNodes.length - 1) {
+                if (subNode.nodeType === 1) {
+                    endingParen = doc.createElement("Text")
+                    endingParen.textContent = ')'
+                    newTextEls.push(endingParen)
+                } else {
+                    textEl.textContent = `${textEl.textContent})`
+                }
+            }
+            if (startingParen) newTextEls.push(startingParen)
+            newTextEls.push(textEl)
+            if (endingParen) newTextEls.push(endingParen)
+        } else {
+            newTextEls.push(textEl)
+        }
+    }
+    // let maybeSpans = el.getElementsByTagName("span")
+    // for (let newSpan of maybeSpans){
+    //     console.log(newSpan)
+    // if (htmlTag === "parenthetical") textEl.textContent = `(${el.textContent})`;
+    // else textEl.textContent = el.textContent;
+    for (let newEl of newTextEls) {
+        doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('      '))
+        paraEl.appendChild(newEl)
+        doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
+    }
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('    '))
     doc.getElementsByTagName("Content")[0].appendChild(paraEl)
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
-    paraEl.appendChild(textEl)
+    // }
 }
 /**
  * 
@@ -692,7 +819,7 @@ function downloadFDX(event) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url;
-    a.download = "script.fdx"
+    a.download = fileNameInput.value ? `${fileNameInput.value}.fdx` : `New Script.fdx`
     a.click()
 
     URL.revokeObjectURL(url);
@@ -787,6 +914,7 @@ scriptWrapper.addEventListener("input", handleInput)
 scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
 
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
+document.getElementById("download-pdf").addEventListener('click', (e) => { alert("PDF Download not supported yet.") })
 document.getElementById("new-blank").addEventListener("click", newBlankScript)
 newBlankScript();
 
@@ -875,17 +1003,12 @@ function getCursorPosition(element) {
     return preCaretRange.toString().length;
 }
 
-/**
- * @param {HTMLElement} element 
- * @param {number} position 
- */
 function setCursorPosition(element, position) {
     element.focus();
 
     const range = document.createRange();
     const selection = window.getSelection();
 
-    // Walk through text nodes to find the one containing the target position
     let currentNode = null;
     let currentOffset = 0;
     let remaining = position;
@@ -901,23 +1024,33 @@ function setCursorPosition(element, position) {
             currentOffset = remaining;
             break;
         }
-
         remaining -= length;
     }
 
     if (currentNode) {
         range.setStart(currentNode, currentOffset);
         range.collapse(true);
+    } else if (element.textContent.length === 0) {
+        range.setStart(element, 0);
+        range.collapse(true);
     } else {
-        // Fallback: position not found (e.g. position exceeds content length)
-        // Place cursor at the end of the element
         range.selectNodeContents(element);
         range.collapse(false);
     }
 
-    selection.removeAllRanges();
-    selection.addRange(range);
-    lastFocusedElement = element
+    const applySelection = () => {
+        selection.removeAllRanges();
+        selection.addRange(range);
+        lastFocusedElement = element;
+    };
+
+    // Firefox sometimes computes the selection correctly right after a
+    // synchronous DOM mutation (insertBefore/extractContents) but skips
+    // painting the caret until a repaint is forced — hence it "reappears"
+    // on arrow-key press, which forces Firefox to redraw it. Deferring to
+    // the next frame lets layout settle first so the caret actually paints.
+    applySelection()
+    // requestAnimationFrame(applySelection);
 }
 
 /**
@@ -1016,7 +1149,7 @@ function paginateScreenplay(elements, options = {
     minWordsAfterSplit: 4,
     isKeepWithNext: null,
 }) {
-    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
+    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH + 1;
 
     // Pass 1: measure everything in ONE reflow.
     const heights = measureHeights(elements, options);
@@ -1219,7 +1352,7 @@ function measureOne(el, scratch) {
  * which can nest (e.g. bold inside italics) to support combined styles.
  */
 
-const STYLE_CLASSES = { b: "bold", i: "italics", u: "underline" };
+const STYLE_CLASSES = { b: "bold", i: "italic", u: "underline" };
 
 /**
  * @param {KeyboardEvent} event
@@ -1229,23 +1362,23 @@ const STYLE_CLASSES = { b: "bold", i: "italics", u: "underline" };
  *   style span you're trying to detect (see hasStyleAncestor below).
  */
 function handleTextStyling(event, editableRoot) {
-  const key = event.key.toLowerCase();
-  if (!(event.ctrlKey || event.metaKey) || !STYLE_CLASSES[key]) return;
+    const key = event.key.toLowerCase();
+    if (!(event.ctrlKey || event.metaKey) || !STYLE_CLASSES[key]) return;
 
-  event.preventDefault();
-  toggleStyle(STYLE_CLASSES[key], editableRoot);
+    event.preventDefault();
+    toggleStyle(STYLE_CLASSES[key], editableRoot);
 }
 
 function toggleStyle(styleClass, editableRoot) {
-  const selection = window.getSelection();
-  if (!selection.rangeCount) return;
-  const range = selection.getRangeAt(0);
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
 
-  if (range.collapsed) {
-    toggleCaretStyle(styleClass);
-  } else {
-    toggleSelectionStyle(range, styleClass, selection, editableRoot);
-  }
+    if (range.collapsed) {
+        toggleCaretStyle(styleClass);
+    } else {
+        toggleSelectionStyle(range, styleClass, selection, editableRoot);
+    }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1259,24 +1392,24 @@ function toggleStyle(styleClass, editableRoot) {
 const pendingStyles = new Set();
 
 function toggleCaretStyle(styleClass) {
-  const node = window.getSelection().anchorNode;
-  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-  const alreadyActive = !!el.closest(`.${styleClass}`);
+    const node = window.getSelection().anchorNode;
+    const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    const alreadyActive = !!el.closest(`.${styleClass}`);
 
-  if (alreadyActive) pendingStyles.delete(styleClass);
-  else pendingStyles.add(styleClass);
+    if (alreadyActive) pendingStyles.delete(styleClass);
+    else pendingStyles.add(styleClass);
 }
 
 // Call this from your `input`/`beforeinput` handler when new text is typed
 // at a caret. It wraps the freshly-inserted text node in spans for every
 // class currently in pendingStyles.
 function applyPendingStylesToNode(textNode) {
-  if (!pendingStyles.size) return;
-  let current = textNode;
-  pendingStyles.forEach((styleClass) => {
-    wrapNodeInStyle(current, styleClass);
-    current = current; // still the same text node, now nested one level deeper
-  });
+    if (!pendingStyles.size) return;
+    let current = textNode;
+    pendingStyles.forEach((styleClass) => {
+        wrapNodeInStyle(current, styleClass);
+        current = current; // still the same text node, now nested one level deeper
+    });
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1284,138 +1417,138 @@ function applyPendingStylesToNode(textNode) {
 /* ---------------------------------------------------------------------- */
 
 function toggleSelectionStyle(range, styleClass, selection, editableRoot) {
-  splitRangeBoundaries(range);
-  const textNodes = getTextNodesInRange(range);
-  if (!textNodes.length) return;
+    splitRangeBoundaries(range);
+    const textNodes = getTextNodesInRange(range);
+    if (!textNodes.length) return;
 
-  // Use the actual editable host as the search boundary, not something
-  // derived from range.commonAncestorContainer. If the whole selection sits
-  // inside one style span, commonAncestorContainer IS that span, and a
-  // boundary equal to it would stop hasStyleAncestor's walk before it ever
-  // checks that span — making an already-styled selection look unstyled.
-  const boundary = editableRoot;
+    // Use the actual editable host as the search boundary, not something
+    // derived from range.commonAncestorContainer. If the whole selection sits
+    // inside one style span, commonAncestorContainer IS that span, and a
+    // boundary equal to it would stop hasStyleAncestor's walk before it ever
+    // checks that span — making an already-styled selection look unstyled.
+    const boundary = editableRoot;
 
-  // Standard rich-text-editor rule: if the WHOLE selection already has the
-  // style, toggling turns it off everywhere; otherwise toggling turns it
-  // on everywhere (including the parts that already had it).
-  const allStyled = textNodes.every((n) => hasStyleAncestor(n, styleClass, boundary));
+    // Standard rich-text-editor rule: if the WHOLE selection already has the
+    // style, toggling turns it off everywhere; otherwise toggling turns it
+    // on everywhere (including the parts that already had it).
+    const allStyled = textNodes.every((n) => hasStyleAncestor(n, styleClass, boundary));
 
-  if (allStyled) {
-    textNodes.forEach((n) => removeStyleFromNode(n, styleClass, boundary));
-  } else {
-    textNodes.forEach((n) => {
-      if (!hasStyleAncestor(n, styleClass, boundary)) wrapNodeInStyle(n, styleClass);
-    });
-  }
+    if (allStyled) {
+        textNodes.forEach((n) => removeStyleFromNode(n, styleClass, boundary));
+    } else {
+        textNodes.forEach((n) => {
+            if (!hasStyleAncestor(n, styleClass, boundary)) wrapNodeInStyle(n, styleClass);
+        });
+    }
 
-  mergeAdjacentSpans(boundary, styleClass);
-  reselectNodes(selection, textNodes);
+    mergeAdjacentSpans(boundary, styleClass);
+    reselectNodes(selection, textNodes);
 }
 
 // Splits the start/end text nodes of the range so the range's boundaries
 // fall exactly on node boundaries. Without this, wrapping/unwrapping would
 // grab characters outside what the user actually selected.
 function splitRangeBoundaries(range) {
-  const { startContainer, startOffset, endContainer, endOffset } = range;
+    const { startContainer, startOffset, endContainer, endOffset } = range;
 
-  if (endContainer.nodeType === Node.TEXT_NODE && endOffset < endContainer.length) {
-    endContainer.splitText(endOffset);
-  }
-  if (startContainer.nodeType === Node.TEXT_NODE && startOffset > 0) {
-    const tail = startContainer.splitText(startOffset);
-    if (startContainer === endContainer) {
-      range.setEnd(tail, endOffset - startOffset);
+    if (endContainer.nodeType === Node.TEXT_NODE && endOffset < endContainer.length) {
+        endContainer.splitText(endOffset);
     }
-    range.setStart(tail, 0);
-  }
+    if (startContainer.nodeType === Node.TEXT_NODE && startOffset > 0) {
+        const tail = startContainer.splitText(startOffset);
+        if (startContainer === endContainer) {
+            range.setEnd(tail, endOffset - startOffset);
+        }
+        range.setStart(tail, 0);
+    }
 }
 
 function getTextNodesInRange(range) {
-  // If the whole selection lives inside one text node, commonAncestorContainer
-  // IS that text node — and a TreeWalker rooted on a text node can't walk into
-  // it (text nodes have no children), so it would return nothing. Fall back
-  // to the parent element in that case.
-  const root =
-    range.commonAncestorContainer.nodeType === Node.TEXT_NODE
-      ? range.commonAncestorContainer.parentNode
-      : range.commonAncestorContainer;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) =>
-      range.intersectsNode(node) && node.textContent.length
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_REJECT,
-  });
-  const nodes = [];
-  let n;
-  while ((n = walker.nextNode())) nodes.push(n);
-  return nodes;
+    // If the whole selection lives inside one text node, commonAncestorContainer
+    // IS that text node — and a TreeWalker rooted on a text node can't walk into
+    // it (text nodes have no children), so it would return nothing. Fall back
+    // to the parent element in that case.
+    const root =
+        range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+            ? range.commonAncestorContainer.parentNode
+            : range.commonAncestorContainer;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) =>
+            range.intersectsNode(node) && node.textContent.length
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT,
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    return nodes;
 }
 
 function hasStyleAncestor(node, styleClass, boundary) {
-  let el = node.parentElement;
-  while (el && el !== boundary) {
-    if (el.classList?.contains(styleClass)) return true;
-    el = el.parentElement;
-  }
-  return false;
+    let el = node.parentElement;
+    while (el && el !== boundary) {
+        if (el.classList?.contains(styleClass)) return true;
+        el = el.parentElement;
+    }
+    return false;
 }
 
 function wrapNodeInStyle(node, styleClass) {
-  const span = document.createElement("span");
-  span.className = styleClass;
-  node.parentNode.insertBefore(span, node);
-  span.appendChild(node);
+    const span = document.createElement("span");
+    span.className = styleClass;
+    node.parentNode.insertBefore(span, node);
+    span.appendChild(node);
 }
 
 // Removes styleClass from whichever ancestor span carries it, splitting
 // that span into up-to-three pieces (before/target/after) so siblings
 // outside the selection keep their formatting untouched.
 function removeStyleFromNode(node, styleClass, boundary) {
-  let el = node.parentElement;
-  while (el && el !== boundary) {
-    if (el.classList?.contains(styleClass)) {
-      unwrapStyleFromChild(el, node, styleClass);
-      return;
+    let el = node.parentElement;
+    while (el && el !== boundary) {
+        if (el.classList?.contains(styleClass)) {
+            unwrapStyleFromChild(el, node, styleClass);
+            return;
+        }
+        el = el.parentElement;
     }
-    el = el.parentElement;
-  }
 }
 
 function unwrapStyleFromChild(styledEl, targetNode, styleClass) {
-  const parent = styledEl.parentNode;
+    const parent = styledEl.parentNode;
 
-  // find the direct child of styledEl that (contains) targetNode
-  let child = targetNode;
-  while (child.parentNode !== styledEl) child = child.parentNode;
+    // find the direct child of styledEl that (contains) targetNode
+    let child = targetNode;
+    while (child.parentNode !== styledEl) child = child.parentNode;
 
-  const children = Array.from(styledEl.childNodes);
-  const idx = children.indexOf(child);
-  const before = children.slice(0, idx);
-  const after = children.slice(idx + 1);
+    const children = Array.from(styledEl.childNodes);
+    const idx = children.indexOf(child);
+    const before = children.slice(0, idx);
+    const after = children.slice(idx + 1);
 
-  if (before.length) {
-    const clone = styledEl.cloneNode(false);
-    before.forEach((c) => clone.appendChild(c));
-    parent.insertBefore(clone, styledEl);
-  }
+    if (before.length) {
+        const clone = styledEl.cloneNode(false);
+        before.forEach((c) => clone.appendChild(c));
+        parent.insertBefore(clone, styledEl);
+    }
 
-  if (styledEl.classList.length > 1) {
-    // element carried other classes too (e.g. bold + something-else) — keep those
-    const clone = styledEl.cloneNode(false);
-    clone.classList.remove(styleClass);
-    clone.appendChild(child);
-    parent.insertBefore(clone, styledEl);
-  } else {
-    parent.insertBefore(child, styledEl);
-  }
+    if (styledEl.classList.length > 1) {
+        // element carried other classes too (e.g. bold + something-else) — keep those
+        const clone = styledEl.cloneNode(false);
+        clone.classList.remove(styleClass);
+        clone.appendChild(child);
+        parent.insertBefore(clone, styledEl);
+    } else {
+        parent.insertBefore(child, styledEl);
+    }
 
-  if (after.length) {
-    const clone = styledEl.cloneNode(false);
-    after.forEach((c) => clone.appendChild(c));
-    parent.insertBefore(clone, styledEl);
-  }
+    if (after.length) {
+        const clone = styledEl.cloneNode(false);
+        after.forEach((c) => clone.appendChild(c));
+        parent.insertBefore(clone, styledEl);
+    }
 
-  parent.removeChild(styledEl);
+    parent.removeChild(styledEl);
 }
 
 // Collapses runs of adjacent identical spans (e.g. two neighboring
@@ -1428,30 +1561,30 @@ function unwrapStyleFromChild(styledEl, targetNode, styleClass) {
 // second of two merged nodes (detaching it) and grows the first node's
 // length, either of which corrupts those references before reselection.
 function mergeAdjacentSpans(root, styleClass) {
-  let spans = root.querySelectorAll(`span.${styleClass}`);
-  spans.forEach((span) => {
-    let next = span.nextSibling;
-    while (
-      next &&
-      next.nodeType === Node.ELEMENT_NODE &&
-      next.classList.contains(styleClass) &&
-      next.classList.length === span.classList.length
-    ) {
-      while (next.firstChild) span.appendChild(next.firstChild);
-      const toRemove = next;
-      next = next.nextSibling;
-      toRemove.remove();
-    }
-  });
+    let spans = root.querySelectorAll(`span.${styleClass}`);
+    spans.forEach((span) => {
+        let next = span.nextSibling;
+        while (
+            next &&
+            next.nodeType === Node.ELEMENT_NODE &&
+            next.classList.contains(styleClass) &&
+            next.classList.length === span.classList.length
+        ) {
+            while (next.firstChild) span.appendChild(next.firstChild);
+            const toRemove = next;
+            next = next.nextSibling;
+            toRemove.remove();
+        }
+    });
 }
 
 function reselectNodes(selection, textNodes) {
-  if (!textNodes.length) return;
-  const first = textNodes[0];
-  const last = textNodes[textNodes.length - 1];
-  const range = document.createRange();
-  range.setStart(first, 0);
-  range.setEnd(last, last.length);
-  selection.removeAllRanges();
-  selection.addRange(range);
+    if (!textNodes.length) return;
+    const first = textNodes[0];
+    const last = textNodes[textNodes.length - 1];
+    const range = document.createRange();
+    range.setStart(first, 0);
+    range.setEnd(last, last.length);
+    selection.removeAllRanges();
+    selection.addRange(range);
 }

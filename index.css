@@ -1,7 +1,7 @@
 :root {
     line-height: 1.5;
     font-weight: 400;
-    font-size: 20px;
+    /* font-size: 20px; */
     color-scheme: light dark;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -45,7 +45,7 @@ main {
     line-height: 1;
     display: flex;
     flex-direction: column;
-    font-size: 12pt;
+    font-size: 11.75pt;
     outline: solid 1px black;
     width: 8.5in;
     height: 11in;
@@ -60,12 +60,24 @@ main {
 }
 
 #options {
-    padding: 1rem;
-    display: flex;
-    flex-direction: row;
 
-    p {
-        margin: 0;
+    background-color: white;
+    position: sticky;
+    top: 0;
+    padding: 1rem;
+    z-index: 100;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    >.buttons {
+        display: flex;
+        flex-direction: row;
+
+        p {
+            margin: 0;
+        }
     }
 }
 
@@ -104,7 +116,7 @@ character {
 
 dialogue {
     padding-left: 1in;
-    padding-right: 2in;
+    padding-right: 1.5in;
 }
 
 parenthetical {
@@ -143,7 +155,7 @@ span.bold {
     font-weight: bold;
 }
 
-span.italics {
+span.italic {
     font-style: italic;
 }
 

@@ -44,3 +44,10 @@ DONE: Auto-completes for character names, headings (int/ext, times of day), tran
 
 7/16/26
 DONE: inline text styling (italics,bold,underline)
+TODO: have those inline styles appear in the downloaded fdx
+
+7/17/16
+Feature checklist
+TODO: Current Page/Page count in top right
+DONE-ISH: move all options to a sticky sidebar on either side
+TODO: make autocompletes consistent casing

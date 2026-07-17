@@ -12,19 +12,25 @@
 <body>
     <main>
         <div id="options">
-            <div id="uploads">
-                <input type="file" id="script-upload" accept=".fdx" />
-                <button id="new-blank">New Blank Script</button>
+            <div class="buttons">
+                <div id="uploads">
+                    <input type="file" id="script-upload" accept=".fdx" />
+                    <button id="new-blank">New Blank Script</button>
+                </div>
+                <div id="downloads">
+                    <p>Download as</p>
+                    <button id="download-pdf">PDF</button>
+                    <button id="download-fdx">FDX</button>
+                </div>
             </div>
-            <div id="downloads">
-                <p>Download as</p>
-                <button id="download-pdf">PDF</button>
-                <button id="download-fdx">FDX</button>
+            <div>
+                <label for="file-name">File Name</label>
+                <input type="text" name="file-name" id="file-name">
             </div>
         </div>
-        <article id="script-main" contenteditable="true" >
-            <div class="page" >
-                <sceneheading class="screenplay-element"><br></sceneheading>
+        <article id="script-main" contenteditable="true">
+            <div class="page">
+                <sceneheading><br></sceneheading>
             </div>
         </article>
     </main>
