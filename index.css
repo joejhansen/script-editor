@@ -27,7 +27,20 @@ main {
     outline: none;
 }
 
+#script-main {
+    counter-reset: page;
+}
+
+.page::before {
+    content: counter(page);
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+}
+
 .page {
+    counter-increment: page;
+    position: relative;
     box-sizing: border-box;
     line-height: 1;
     display: flex;
@@ -38,6 +51,7 @@ main {
     height: 11in;
     padding: 1in 1in 1in 1.5in;
     margin-bottom: 1rem;
+    /* word-break: break-all; idk about this */
 }
 
 
@@ -117,6 +131,28 @@ sceneheading {
     text-transform: uppercase;
 }
 
+transition::after,
+character::after,
+sceneheading::after {
+    display: inline-block;
+    content: attr(data-suggestion);
+    color: gray
+}
+
+span.bold {
+    font-weight: bold;
+}
+
+span.italics {
+    font-style: italic;
+}
+
+span.underline {
+    text-decoration: underline;
+}
+
+
+
 continued {
     padding-left: 2in;
     padding-right: 3in;
@@ -124,5 +160,12 @@ continued {
 
 .autocomplete {
     color: gray;
+    user-select: none;
+}
+
+pagenum {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
     user-select: none;
 }

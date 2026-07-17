@@ -6,7 +6,7 @@ ABANDONED: pick a pdf package because it seems like making one myself would be a
     https://www.npmjs.com/package/pdfmake
     https://www.npmjs.com/package/html2pdf.js
     PSYCHE, we're doing HTML -> LaTeX -> PDF
-TODO: pick a copyleft license because fuck paying, logins, analytics, any other bullshit just to make art
+DONE: pick a copyleft license because fuck paying, logins, analytics, any other bullshit just to make art
 TODO: make this a PWA for download and put on gh pages
 TODO: Figure out a unique name because "Lib(re)Script" is either already taken and/or refers to scripting languages
     Lib(re), Free, Open, True, Off(Script)
@@ -40,4 +40,7 @@ DONE: optimize reformatScreenplay because it's slow after a couple dozen pages.
 DONE: Properly split dialogue with (MORE) and (CONT'D)
     TODO: Make sure this works with parentheticals
 DONE: Fix setCursorPosition on reformatScreenplay with split dialogues
-TODO: Auto-completes for character names, headings (int/ext, times of day), transitions
+DONE: Auto-completes for character names, headings (int/ext, times of day), transitions
+
+7/16/26
+DONE: inline text styling (italics,bold,underline)

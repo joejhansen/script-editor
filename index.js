@@ -44,6 +44,7 @@ const HTML_TAG_NAMES = [
     "outline3",
     "note"
 ]
+const EXTENSION_REGEX = /\(([\w\.\-'])*\)?$/i
 const DEFAULT_EXTENSIONS = new Set([
     "(V.O.)",
     "(O.S.)",
@@ -53,8 +54,9 @@ const DEFAULT_EXTENSIONS = new Set([
     "(TEXT)",
     "(pre-lap)",
 ]);
-const DEFAULT_SCENE_INTROS = new Set(["INT.", "EXT.", "I/E"]);
 const SCENE_INTRO_REGEX = /^(\w{1,3}|i\/{1,2})(?!.)/i
+const DEFAULT_SCENE_INTROS = new Set(["INT.", "EXT.", "I/E"]);
+const TIME_OF_DAY_REGEX = /-\s(?:\w* *)+$/i
 const DEFAULT_TIMES_OF_DAY = new Set([
     "DAY",
     "NIGHT",
@@ -71,7 +73,6 @@ const DEFAULT_TIMES_OF_DAY = new Set([
     "SAME",
     "SAME TIME",
 ]);
-const TIME_OF_DAY_REGEX = /-\s(?:\w* *)+$/i
 const DEFAULT_TRANSITIONS = new Set([
     "CUT TO:",
     "FADE IN:",
@@ -95,6 +96,8 @@ let scriptWrapper = document.getElementById("script-main");
 let defaultScriptSettings = null
 /** @type {ElementSettings | null} */
 let scriptSettings = null
+/** @type {Document | null} */
+let blankScriptXML = null
 /** @type {Document | null} */
 let originalXML = null
 /** @type {HTMLElement | null} */
@@ -275,7 +278,8 @@ function handleFileInput(event) {
 function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
     const cursorPosition = document.getSelection().anchorOffset
-    if (el.firstElementChild) { if (el.firstElementChild.classList.contains("autocomplete")) { el.removeChild(el.firstElementChild) } }
+    if (el.dataset.suggestion) { el.dataset.suggestion = ""; }
+    if (el.tagName === "CHARACTER") addToCharacterSet(el.textContent)
     const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.replace(/\s/g, "").toLowerCase(), el.textContent.substring(cursorPosition))
     el.textContent = el.textContent.substring(0, cursorPosition)
     if (el.textContent.length === 0) el.appendChild(document.createElement('br'))
@@ -331,12 +335,16 @@ function changeElementTo(el, newType, currentPage) {
  * @param {Element} el
  * @param {Element} currentPage
  */
-function handlelShortCut(event, el, currentPage) {
-    if (event.key.length > 1 || isNaN(parseInt(event.key))) return;
-    for (const setting in scriptSettings) {
-        if (scriptSettings[setting].Shortcut === event.key) {
-            event.preventDefault();
-            changeElementTo(el, setting, currentPage)
+function handleShortCut(event, el, currentPage) {
+    const key = event.key.toLowerCase();
+    handleTextStyling(event, scriptWrapper)
+    if (!isNaN(parseInt(key))) {
+        for (const setting in scriptSettings) {
+            if (scriptSettings[setting].Shortcut === key) {
+                event.preventDefault();
+                changeElementTo(el, setting, currentPage)
+                return
+            }
         }
     }
 }
@@ -349,13 +357,10 @@ function handlelShortCut(event, el, currentPage) {
 function handleTab(event, el, currentPage) {
     event.preventDefault();
 
-    if (el.textContent && el.firstElementChild) {
-        // el.textContent+=el.firstElementChild.textContent; // for whatever goddam reason, doing this ALSO removes the span, which will make the subsequence Node.removeChild call fail for having a null arg
-        const completeText = el.firstElementChild.textContent
-        el.removeChild(el.firstElementChild);
-        el.textContent += completeText
+    if (el.textContent && el.dataset.suggestion) {
+        el.textContent += el.dataset.suggestion
+        el.dataset.suggestion = ""
         setCursorPosition(el, el.textContent.length)
-        // if (el.tagName === "CHARACTER") { console.log("here");secondLastCharacterUsed = lastCharacterUsed; lastCharacterUsed = el.textContent }
         return;
     }
     let newElShortcut = scriptSettings[el.tagName.toLowerCase()].Shortcut;
@@ -375,6 +380,7 @@ function handleTab(event, el, currentPage) {
             else {
                 let newElement = newScriptElement(setting)
                 currentPage.insertBefore(newElement, el.nextSibling)
+                if (el.tagName === "CHARACTER") addToCharacterSet(el.textContent)
                 setCursorPosition(newElement, 0)
             }
         }
@@ -387,8 +393,6 @@ function handleTab(event, el, currentPage) {
  * @param {Element} currentPage
  */
 function handleDeletion(event, el, currentPage) {
-    // console.log("DEBUG:\tHandling deletions")
-    // TODO: fix delete page when document is empty
     const selection = document.getSelection();
     const range = selection.getRangeAt(0);
 
@@ -421,11 +425,28 @@ function handleDeleteKey(event, child, currentPage) {
  * @returns {number}
  */
 function getChildElementIndex(child, parent) {
-    let res = -1;
     for (let i = 0; i < parent.childElementCount; i++) {
-        if (parent.children[i] === child) res = i;
+        if (parent.children[i] === child) return i;
     }
-    return res;
+    return -1;
+}
+
+function getAllScreenplayElements() {
+    let allElements = [];
+    const pages = document.getElementsByClassName("page")
+    let dialogueContinued = false;
+    for (let i = 0; i < pages.length; i++) {
+        for (let j = 0; j < pages[i].childElementCount; j++) {
+            if (dialogueContinued) { j = 1; dialogueContinued = false; }
+            else if (pages[i].children[j].tagName.toLowerCase() === "continued") {
+                allElements[allElements.length - 1].textContent += ` ${pages[i + 1].children[1].textContent}`
+                dialogueContinued = true;
+            } else {
+                allElements.push(pages[i].children[j])
+            }
+        }
+    }
+    return allElements;
 }
 
 /**
@@ -434,35 +455,24 @@ function getChildElementIndex(child, parent) {
  * @param {HTMLElement} currentPage 
  */
 function reformatScreenplay(currentElement, currentPage) {
-    // console.log("DEBUG:\tReformatting")
     const lastScrollPosition = saveScrollPosition(currentElement);
     const lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
     const currentPageI = getChildElementIndex(currentPage, scriptWrapper)
     const currentElementI = getChildElementIndex(currentElement, currentPage)
-    let allElements = [];
-    const pages = document.getElementsByClassName("page")
-    let dialogueContinued = false;
-    for (let i = 0; i < pages.length; i++) {
-        for (let j = 0; j < pages[i].childElementCount; j++) {
-            if (dialogueContinued) { j = 1; dialogueContinued = false; }
-            else if (pages[i].children[j].tagName.toLowerCase() === "continued") {
-                const lastDialogueI = j - 1;
-                const nextDialogueI = j + 2;
-                allElements[allElements.length - 1].textContent += ` ${pages[i + 1].children[1].textContent}`
-                dialogueContinued = true;
-            } else {
-                allElements.push(pages[i].children[j])
-            }
-        }
-    }
+    let allElements = getAllScreenplayElements();
     emptyElement(scriptWrapper)
     const newPages = paginateScreenplay(allElements)
     for (const newPage of newPages) {
         scriptWrapper.appendChild(newPage)
     }
-    setCursorPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastCursorPosition)
-    restoreScrollPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastScrollPosition)
+    if (currentElement) {
+        setCursorPosition(currentElement, lastCursorPosition)
+        restoreScrollPosition(currentElement, lastScrollPosition)
+    } else { // edge case where the element doesn't exit anymore, probably because it's been split between pages like for dialogue
+        setCursorPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastCursorPosition)
+        restoreScrollPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastScrollPosition)
+    }
 }
 /**
  * @param {KeyboardEvent} e 
@@ -470,7 +480,7 @@ function reformatScreenplay(currentElement, currentPage) {
  * @param {HTMLElement} page 
  */
 function handleArrowKeysUp(e, el, page) {
-    if (lastFocusedElement !== el && lastFocusedElement.firstElementChild) lastFocusedElement.removeChild(lastFocusedElement.firstElementChild)
+    if (lastFocusedElement !== el && lastFocusedElement.dataset.suggestion) lastFocusedElement.dataset.suggestion = "";
     lastFocusedElement = el;
 }
 
@@ -483,7 +493,7 @@ function handleKeyDown(event) {
     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
     const currentPage = child.parentElement;
     if (event.key === "Tab") handleTab(event, child, currentPage)
-    else if (event.ctrlKey && event.key !== "Control") handlelShortCut(event, child, currentPage)
+    else if (event.ctrlKey && event.key !== "Control") handleShortCut(event, child, currentPage)
 }
 /**
  * @param {KeyboardEvent} event 
@@ -555,44 +565,31 @@ let lastAutocomplete = "";
  * @param {HTMLElement} currentPage 
  */
 function handleAutocomplete(event, currentEl, currentPage) {
-
     if (!AUTOCOMPLETE_TAGS.includes(currentEl.tagName.toLowerCase())) return
-    const maybeSpan = currentEl.getElementsByClassName("autocomplete")
-    if (maybeSpan.length) currentEl.removeChild(maybeSpan[0])
-
-    if (!currentEl.textContent && !currentEl.firstChild) {
-        currentEl.appendChild(document.createElement('br'));
+    if (currentEl.dataset.suggestion) currentEl.dataset.suggestion = ""
+    if (!currentEl.textContent) {
+        if (!currentEl.firstChild) currentEl.appendChild(document.createElement('br'));
         return;
     }
 
-    let newSpan = document.createElement("span")
-    newSpan.classList.add("autocomplete")
-    // newSpan.setAttribute("userselect")
     let res = ""
     switch (currentEl.tagName) {
-        case "CHARACTER": // this is fucking killing me omg
-            // console.log("DEBUG:\tIn character autocomplete")
-            [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, characterSet)
-            // if (!currentEl.textContent) res = secondLastCharacterUsed ? secondLastCharacterUsed : res;
-            // else if (lastAutocomplete && substringAtStart(currentEl.textContent, lastAutocomplete)) res = lastAutocomplete.substring(currentEl.textContent.length)
-            // else[lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, characterSet)
+        case "CHARACTER":
+            if (EXTENSION_REGEX.test(currentEl.textContent)) [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent.substring(currentEl.textContent.lastIndexOf('(')).trim(), DEFAULT_EXTENSIONS)
+            else[lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, characterSet)
             break;
         case "TRANSITION":
             [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, DEFAULT_TRANSITIONS)
             break;
         case "SCENEHEADING":
-            if (SCENE_INTRO_REGEX.test(currentEl.textContent)) { // we assume we're in the int/ext portion
-                [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, DEFAULT_SCENE_INTROS)
-            } else if (TIME_OF_DAY_REGEX.test(currentEl.textContent)) {
-                [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent.substring(currentEl.textContent.lastIndexOf('-') + 1).trim(), DEFAULT_TIMES_OF_DAY)
-            }
+            if (SCENE_INTRO_REGEX.test(currentEl.textContent)) [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent, DEFAULT_SCENE_INTROS)
+            else if (TIME_OF_DAY_REGEX.test(currentEl.textContent)) [lastAutocomplete, res] = completeStringFromSet(currentEl.textContent.substring(currentEl.textContent.lastIndexOf('-') + 1).trim(), DEFAULT_TIMES_OF_DAY)
             break;
         default:
             break;
     }
     if (res) {
-        newSpan.textContent = res;
-        currentEl.appendChild(newSpan)
+        currentEl.dataset.suggestion = res;
     }
 }
 /**
@@ -613,18 +610,12 @@ function handleInput(event) {
 
     handleAutocomplete(event, child, currentPage);
     setCursorPosition(child, lastCursorPosition)
-    // if (child.tagName === "CHARACTER"){
-    //     // if (secondLastCharacterUsed) 
-    //     // child.place
-    //     // currentPage.placeh
-    // }
+
     if (scriptWrapper.childElementCount === 1 && !scriptWrapper.firstChild.firstChild) newBlankScript() // edge case where all elements are empty with <br>
     else {
         if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child, currentPage)
         else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage)
     }
-
-    // if (lastFocusedElement !== child && lastFocusedElement.tagName)
 
     lastFocusedElement = child;
     lastElementLineCount = newLineCount
@@ -638,6 +629,8 @@ function handleInput(event) {
 function tagToFDXType(tagStr) {
     return VALID_FDX_TYPES.at(HTML_TAG_NAMES.indexOf(tagStr))
 }
+
+
 
 /**
  * @param {Document} doc
@@ -655,6 +648,19 @@ function HTMLtoFDX(doc, el) {
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
     paraEl.appendChild(textEl)
 }
+/**
+ * 
+ * @param {Document} doc 
+ * @param {string} char 
+ */
+function addCharacterToXML(doc, char) {
+    let newCharEl = doc.createElement("Character")
+    newCharEl.textContent = char;
+
+    doc.getElementsByTagName("Characters")[0].appendChild(doc.createTextNode('      '))
+    doc.getElementsByTagName("Characters")[0].appendChild(newCharEl)
+    doc.getElementsByTagName("Characters")[0].appendChild(doc.createTextNode('\n'))
+}
 
 /**
  * @param {Event}
@@ -663,16 +669,23 @@ function downloadFDX(event) {
     event.preventDefault();
     const parser = new DOMParser()
     let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
-    // let newContentEl = newContentDoc.getElementsByTagName("Content")[0]
-    const pages = document.getElementsByClassName("page")
-    for (const page of pages) {
-        for (const child of page.children) {
-            HTMLtoFDX(newContentDoc, child)
-        }
+    const allElements = getAllScreenplayElements();
+    for (const el of allElements) {
+        HTMLtoFDX(newContentDoc, el)
     }
     newContentDoc.getElementsByTagName("Content")[0].appendChild(newContentDoc.createTextNode('  '))
+
+    let newCharactersEl = parser.parseFromString(`<Characters>\n</Characters>`, "application/xml")
+    for (const character of characterSet) {
+        addCharacterToXML(newCharactersEl, character)
+    }
+    newCharactersEl.getElementsByTagName("Characters")[0].appendChild(newCharactersEl.createTextNode('      '))
+
     let FDRoot = originalXML.getElementsByTagName("FinalDraft")[0];
     FDRoot.replaceChild(newContentDoc.getElementsByTagName("Content")[0], FDRoot.getElementsByTagName("Content")[0])
+    FDRoot.getElementsByTagName("SmartType")[0].replaceChild(newCharactersEl.getElementsByTagName("Characters")[0], FDRoot.getElementsByTagName("SmartType")[0].getElementsByTagName("Characters")[0])
+
+
     const serializer = new XMLSerializer();
     const newXMLStr = serializer.serializeToString(originalXML)
     const blob = new Blob([newXMLStr], { type: "application/xml" })
@@ -690,6 +703,18 @@ function downloadFDX(event) {
  */
 function emptyElement(el) {
     while (el.firstChild) el.removeChild(el.firstChild)
+}
+
+async function loadBlankXMLDoc() {
+    if (blankScriptXML === null) {
+        fetch("BlankFD13.fdx")
+            .then(res => res.text())
+            .then(text => parseXMLString(text))
+            .then(doc => { blankScriptXML = doc; originalXML = blankScriptXML; })
+            .catch(e => console.warn(e))
+    } else {
+        originalXML = blankScriptXML
+    }
 }
 
 async function loadDefaultSettings() {
@@ -723,8 +748,9 @@ function newBlankScript() {
         newPage.appendChild(newSceneHeading)
         scriptWrapper.appendChild(newPage)
         setCursorPosition(newSceneHeading, 0)
-        // lastFocusedElement = newSceneHeading;
+        lastFocusedElement = newSceneHeading;
     }).catch(e => console.warn(e));
+    loadBlankXMLDoc().catch(e => console.warn(e))
 }
 
 function replaceXMLContent() { }
@@ -747,6 +773,9 @@ function getCharacterInfo(doc) {
  * @param {string} str 
  */
 function addToCharacterSet(str) {
+    if (!str) return;
+    if (EXTENSION_REGEX.test(str)) str = str.substring(0, str.lastIndexOf('(')).trim();
+    str = str.charAt(0).toUpperCase() + str.substring(1)
     characterSet.add(str)
 }
 
@@ -759,7 +788,6 @@ scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
 
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("new-blank").addEventListener("click", newBlankScript)
-loadDefaultSettings();
 newBlankScript();
 
 // Fuck it, let's just ask Claude
@@ -926,10 +954,6 @@ function createPage(options) {
     page.setAttribute("contenteditable", "true")
     page.classList.add(options.pageClassName);
     Object.assign(page.style, {
-        // boxSizing: 'border-box',
-        // paddingTop: `${marginTopIn}in`,
-        // paddingBottom: `${marginBottomIn}in`,
-        // height: 'auto',
         overflow: 'visible',
         minHeight: '0',
     });
@@ -983,7 +1007,7 @@ const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
  */
 function paginateScreenplay(elements, options = {
     pageClassName: 'page',
-    pageHeightIn: 9,
+    pageHeightIn: DEFAULT_PAGE_HEIGHT - DEFAULT_BOTTOM_MARGIN - DEFAULT_TOP_MARGIN,
     characterTagName: 'character',
     dialogueTagName: 'dialogue',
     moreText: '(MORE)',
@@ -992,8 +1016,7 @@ function paginateScreenplay(elements, options = {
     minWordsAfterSplit: 4,
     isKeepWithNext: null,
 }) {
-    const PX_PER_IN = 96;
-    const pageHeightPx = options.pageHeightIn * PX_PER_IN;
+    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
 
     // Pass 1: measure everything in ONE reflow.
     const heights = measureHeights(elements, options);
@@ -1093,7 +1116,7 @@ function paginateScreenplay(elements, options = {
     pageBuckets.push(currentEls);
     document.body.removeChild(scratch);
     // Pass 3: build real pages, one batched write each — still no reads.
-    return pageBuckets.map(els => {
+    return pageBuckets.map((els, i) => {
         const page = createPage(options);
         const frag = document.createDocumentFragment();
         els.forEach(el => frag.appendChild(el));
@@ -1187,4 +1210,248 @@ function measureOne(el, scratch) {
     const h = scratch.lastElementChild.getBoundingClientRect().height;
     scratch.removeChild(scratch.lastElementChild);
     return h;
+}
+
+
+/**
+ * Rich text formatting toggler for contenteditable elements.
+ * Formats are represented as <span class="bold|italics|underline">...</span>,
+ * which can nest (e.g. bold inside italics) to support combined styles.
+ */
+
+const STYLE_CLASSES = { b: "bold", i: "italics", u: "underline" };
+
+/**
+ * @param {KeyboardEvent} event
+ * @param {Element} editableRoot - the contenteditable host (e.g. your script-wrapper).
+ *   Passed explicitly rather than derived from the selection, because a
+ *   selection-derived boundary can accidentally collapse onto the exact
+ *   style span you're trying to detect (see hasStyleAncestor below).
+ */
+function handleTextStyling(event, editableRoot) {
+  const key = event.key.toLowerCase();
+  if (!(event.ctrlKey || event.metaKey) || !STYLE_CLASSES[key]) return;
+
+  event.preventDefault();
+  toggleStyle(STYLE_CLASSES[key], editableRoot);
+}
+
+function toggleStyle(styleClass, editableRoot) {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+
+  if (range.collapsed) {
+    toggleCaretStyle(styleClass);
+  } else {
+    toggleSelectionStyle(range, styleClass, selection, editableRoot);
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Collapsed selection (blinking caret, no text highlighted)              */
+/* ---------------------------------------------------------------------- */
+
+// You genuinely can't "style" zero characters. The standard approach
+// (used by every real editor) is to track which styles should apply to
+// the *next* typed characters, rather than trying to insert an empty
+// styled element at the caret (which browsers tend to eat/normalize away).
+const pendingStyles = new Set();
+
+function toggleCaretStyle(styleClass) {
+  const node = window.getSelection().anchorNode;
+  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  const alreadyActive = !!el.closest(`.${styleClass}`);
+
+  if (alreadyActive) pendingStyles.delete(styleClass);
+  else pendingStyles.add(styleClass);
+}
+
+// Call this from your `input`/`beforeinput` handler when new text is typed
+// at a caret. It wraps the freshly-inserted text node in spans for every
+// class currently in pendingStyles.
+function applyPendingStylesToNode(textNode) {
+  if (!pendingStyles.size) return;
+  let current = textNode;
+  pendingStyles.forEach((styleClass) => {
+    wrapNodeInStyle(current, styleClass);
+    current = current; // still the same text node, now nested one level deeper
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* Non-collapsed selection (actual highlighted text)                      */
+/* ---------------------------------------------------------------------- */
+
+function toggleSelectionStyle(range, styleClass, selection, editableRoot) {
+  splitRangeBoundaries(range);
+  const textNodes = getTextNodesInRange(range);
+  if (!textNodes.length) return;
+
+  // Use the actual editable host as the search boundary, not something
+  // derived from range.commonAncestorContainer. If the whole selection sits
+  // inside one style span, commonAncestorContainer IS that span, and a
+  // boundary equal to it would stop hasStyleAncestor's walk before it ever
+  // checks that span — making an already-styled selection look unstyled.
+  const boundary = editableRoot;
+
+  // Standard rich-text-editor rule: if the WHOLE selection already has the
+  // style, toggling turns it off everywhere; otherwise toggling turns it
+  // on everywhere (including the parts that already had it).
+  const allStyled = textNodes.every((n) => hasStyleAncestor(n, styleClass, boundary));
+
+  if (allStyled) {
+    textNodes.forEach((n) => removeStyleFromNode(n, styleClass, boundary));
+  } else {
+    textNodes.forEach((n) => {
+      if (!hasStyleAncestor(n, styleClass, boundary)) wrapNodeInStyle(n, styleClass);
+    });
+  }
+
+  mergeAdjacentSpans(boundary, styleClass);
+  reselectNodes(selection, textNodes);
+}
+
+// Splits the start/end text nodes of the range so the range's boundaries
+// fall exactly on node boundaries. Without this, wrapping/unwrapping would
+// grab characters outside what the user actually selected.
+function splitRangeBoundaries(range) {
+  const { startContainer, startOffset, endContainer, endOffset } = range;
+
+  if (endContainer.nodeType === Node.TEXT_NODE && endOffset < endContainer.length) {
+    endContainer.splitText(endOffset);
+  }
+  if (startContainer.nodeType === Node.TEXT_NODE && startOffset > 0) {
+    const tail = startContainer.splitText(startOffset);
+    if (startContainer === endContainer) {
+      range.setEnd(tail, endOffset - startOffset);
+    }
+    range.setStart(tail, 0);
+  }
+}
+
+function getTextNodesInRange(range) {
+  // If the whole selection lives inside one text node, commonAncestorContainer
+  // IS that text node — and a TreeWalker rooted on a text node can't walk into
+  // it (text nodes have no children), so it would return nothing. Fall back
+  // to the parent element in that case.
+  const root =
+    range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+      ? range.commonAncestorContainer.parentNode
+      : range.commonAncestorContainer;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      range.intersectsNode(node) && node.textContent.length
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT,
+  });
+  const nodes = [];
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+  return nodes;
+}
+
+function hasStyleAncestor(node, styleClass, boundary) {
+  let el = node.parentElement;
+  while (el && el !== boundary) {
+    if (el.classList?.contains(styleClass)) return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
+function wrapNodeInStyle(node, styleClass) {
+  const span = document.createElement("span");
+  span.className = styleClass;
+  node.parentNode.insertBefore(span, node);
+  span.appendChild(node);
+}
+
+// Removes styleClass from whichever ancestor span carries it, splitting
+// that span into up-to-three pieces (before/target/after) so siblings
+// outside the selection keep their formatting untouched.
+function removeStyleFromNode(node, styleClass, boundary) {
+  let el = node.parentElement;
+  while (el && el !== boundary) {
+    if (el.classList?.contains(styleClass)) {
+      unwrapStyleFromChild(el, node, styleClass);
+      return;
+    }
+    el = el.parentElement;
+  }
+}
+
+function unwrapStyleFromChild(styledEl, targetNode, styleClass) {
+  const parent = styledEl.parentNode;
+
+  // find the direct child of styledEl that (contains) targetNode
+  let child = targetNode;
+  while (child.parentNode !== styledEl) child = child.parentNode;
+
+  const children = Array.from(styledEl.childNodes);
+  const idx = children.indexOf(child);
+  const before = children.slice(0, idx);
+  const after = children.slice(idx + 1);
+
+  if (before.length) {
+    const clone = styledEl.cloneNode(false);
+    before.forEach((c) => clone.appendChild(c));
+    parent.insertBefore(clone, styledEl);
+  }
+
+  if (styledEl.classList.length > 1) {
+    // element carried other classes too (e.g. bold + something-else) — keep those
+    const clone = styledEl.cloneNode(false);
+    clone.classList.remove(styleClass);
+    clone.appendChild(child);
+    parent.insertBefore(clone, styledEl);
+  } else {
+    parent.insertBefore(child, styledEl);
+  }
+
+  if (after.length) {
+    const clone = styledEl.cloneNode(false);
+    after.forEach((c) => clone.appendChild(c));
+    parent.insertBefore(clone, styledEl);
+  }
+
+  parent.removeChild(styledEl);
+}
+
+// Collapses runs of adjacent identical spans (e.g. two neighboring
+// span.bold produced by the operations above) back into one.
+//
+// NOTE: deliberately does NOT call root.normalize() here. That would merge
+// any adjacent plain text node siblings across the whole editable root —
+// including nodes still referenced by textNodes[] in toggleSelectionStyle,
+// which reselectNodes uses right after this runs. normalize() deletes the
+// second of two merged nodes (detaching it) and grows the first node's
+// length, either of which corrupts those references before reselection.
+function mergeAdjacentSpans(root, styleClass) {
+  let spans = root.querySelectorAll(`span.${styleClass}`);
+  spans.forEach((span) => {
+    let next = span.nextSibling;
+    while (
+      next &&
+      next.nodeType === Node.ELEMENT_NODE &&
+      next.classList.contains(styleClass) &&
+      next.classList.length === span.classList.length
+    ) {
+      while (next.firstChild) span.appendChild(next.firstChild);
+      const toRemove = next;
+      next = next.nextSibling;
+      toRemove.remove();
+    }
+  });
+}
+
+function reselectNodes(selection, textNodes) {
+  if (!textNodes.length) return;
+  const first = textNodes[0];
+  const last = textNodes[textNodes.length - 1];
+  const range = document.createRange();
+  range.setStart(first, 0);
+  range.setEnd(last, last.length);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
