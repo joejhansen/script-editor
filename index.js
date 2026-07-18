@@ -1,3 +1,177 @@
+class UndoStack {
+    constructor(limit = 100, undo = [], redo = []) {
+        this.undo_ = undo;
+        this.redo_ = redo;
+        this.limit = limit;
+    }
+
+    snapshot() {
+        return {
+            html: scriptWrapper.innerHTML,
+            selection: captureSelection(), // save/restore caret position too
+        };
+    }
+
+    push() {
+        this.undo_.push(this.snapshot());
+        this.redo_.length = 0;
+        if (this.undo_.length > this.limit) this.undo_.shift();
+    }
+
+    undo() {
+        if (!this.undo_.length) return;
+        this.redo_.push(this.snapshot());
+        const state = this.undo_.pop();
+        scriptWrapper.innerHTML = state.html;
+        restoreSelection(state.selection);
+    }
+
+    redo() {
+        if (!this.redo_.length) return;
+        this.undo_.push(this.snapshot());
+        const state = this.redo_.pop();
+        scriptWrapper.innerHTML = state.html;
+        restoreSelection(state.selection);
+    }
+}
+let uid = 0;
+/**
+ * 
+ * @param {HTMLElement} el 
+ * @returns {string}
+ */
+function ensureId(el) { if (!el.id) el.id = `el-${uid++}`; return el.id; }
+/**
+ * 
+ * @param {Node} node 
+ * @param {HTMLElement?} root 
+ * @returns {HTMLElement | null}
+ */
+function closestBlock(node, root = scriptWrapper) {
+    // Text node -> start from its parent element
+    let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+
+    while (el && el !== root) {
+        if (HTML_TAG_NAMES.includes(el.tagName.toLowerCase())) return el;
+        el = el.parentElement;
+    }
+    return null; // node wasn't inside a recognized block (shouldn't normally happen)
+}
+
+function captureSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+
+    const range = sel.getRangeAt(0);
+
+    const anchorBlock = closestBlock(sel.anchorNode);
+    const focusBlock = closestBlock(sel.focusNode);
+    if (!anchorBlock || !focusBlock) return null;
+
+    return {
+        anchorBlockId: ensureId(anchorBlock),
+        anchorOffset: textOffsetWithinBlock(anchorBlock, sel.anchorNode, sel.anchorOffset),
+        focusBlockId: ensureId(focusBlock),
+        focusOffset: textOffsetWithinBlock(focusBlock, sel.focusNode, sel.focusOffset),
+    };
+}
+
+/**
+ * Convert a (node, offset) pair into a character offset relative to block.textContent 
+ * @param {HTMLElement} block 
+ * @param {Node} node 
+ * @param {number} offset 
+ * @returns {number}
+ */
+function textOffsetWithinBlock(block, node, offset) {
+    if (node.nodeType !== Node.TEXT_NODE) {
+        // Selection anchor landed on an element (e.g. empty block, or offset
+        // counts child nodes) — sum text length of preceding children instead.
+        let total = 0;
+        for (let i = 0; i < offset; i++) {
+            total += node.childNodes[i]?.textContent.length ?? 0;
+        }
+        return total;
+    }
+
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let total = 0;
+    let current = walker.nextNode();
+    while (current && current !== node) {
+        total += current.textContent.length;
+        current = walker.nextNode();
+    }
+    return total + offset;
+}
+// Walk a block's text nodes to find the (node, offset) pair
+// corresponding to a character offset into its overall textContent.
+function findTextPosition(block, charOffset) {
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let remaining = charOffset;
+    let node = walker.nextNode();
+    let last = null;
+
+    while (node) {
+        const len = node.textContent.length;
+        if (remaining <= len) {
+            return { node, offset: remaining };
+        }
+        remaining -= len;
+        last = node;
+        node = walker.nextNode();
+    }
+
+    // charOffset was beyond the block's text (e.g. block is now empty,
+    // or offset was clamped by an earlier merge) — fall back to the end.
+    if (last) return { node: last, offset: last.textContent.length };
+
+    // Block has no text nodes at all (fully emptied) — insert as a child directly.
+    return { node: block, offset: 0 };
+}
+
+function resolveAnchor(anchor) {
+    const block = document.getElementById(anchor.startBlockId);
+    if (!block) throw new Error(`resolveAnchor: block ${anchor.startBlockId} no longer exists`);
+
+    const { node, offset } = findTextPosition(block, anchor.startOffset);
+    const range = document.createRange();
+
+    if (node === block) {
+        range.setStart(block, 0); // empty block, insert as first child
+    } else {
+        range.setStart(node, offset);
+    }
+    range.collapse(true);
+    return range;
+}
+function restoreSelection(saved) {
+    if (!saved) return;
+
+    const anchorBlock = document.getElementById(saved.anchorBlockId);
+    const focusBlock = document.getElementById(saved.focusBlockId);
+    if (!anchorBlock || !focusBlock) return; // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
+
+    const anchorPos = findTextPosition(anchorBlock, saved.anchorOffset);
+    const focusPos = findTextPosition(focusBlock, saved.focusOffset);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+
+    const range = document.createRange();
+    range.setStart(anchorPos.node === anchorBlock ? anchorBlock : anchorPos.node,
+        anchorPos.node === anchorBlock ? 0 : anchorPos.offset);
+    range.collapse(true);
+    sel.addRange(range);
+
+    // Extend to focus if it's a real selection, not just a caret
+    if (saved.anchorBlockId !== saved.focusBlockId || saved.anchorOffset !== saved.focusOffset) {
+        sel.extend(
+            focusPos.node === focusBlock ? focusBlock : focusPos.node,
+            focusPos.node === focusBlock ? 0 : focusPos.offset
+        );
+    }
+}
+
 // Everything in inches
 const DEFAULT_PAGE_WIDTH = 8.5
 const DEFAULT_PAGE_HEIGHT = 11
@@ -88,8 +262,17 @@ const DEFAULT_TRANSITIONS = new Set([
     "TIME CUT:",
 ]);
 const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
-const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward"]
+const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward", "deleteByCut"]
 const ARROW_KEYS = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"]
+const LAST_SCREENPLAY_KEY = "lastScreenplay";
+const LAST_SCRIPT_SETTINGS_KEY = "lastScriptSettings"
+const LAST_XML_DOC_KEY = "lastXMLDoc"
+const LAST_FILE_NAME_KEY = "lastFileName"
+const LAST_CHARACTER_SET_KEY = "lastCharacterSet"
+const LAST_UNDO_STACK_KEY = "lastUndoStack"
+const LAST_SCROLL_POSITION_KEY = "lastScrollPosition"
+const LAST_CURSOR_POSITION_KEY = "lastCursorPosition"
+
 let scriptWrapper = document.getElementById("script-main");
 /** @type {HTMLInputElement} */
 let fileNameInput = document.getElementById("file-name")
@@ -110,6 +293,10 @@ let lastElementLineCount = 1;
 let characterSet = new Set();
 let lastCharacterUsed = "";
 let secondLastCharacterUsed = "";
+
+let undoStack = new UndoStack();
+
+
 
 /**
  * @typedef {Object} ElementSetting
@@ -197,6 +384,19 @@ function LoadElSettings(doc) {
     return res;
 }
 
+function saveCurrentScreenplay() {
+    if (document.visibilityState === "hidden") {
+        const xmlString = new XMLSerializer().serializeToString(originalXML);
+        localStorage.setItem(LAST_SCREENPLAY_KEY, scriptWrapper.innerHTML)
+        localStorage.setItem(LAST_SCRIPT_SETTINGS_KEY, JSON.stringify(scriptSettings))
+        localStorage.setItem(LAST_XML_DOC_KEY, xmlString)
+        localStorage.setItem(LAST_FILE_NAME_KEY, fileNameInput.value)
+        localStorage.setItem(LAST_CHARACTER_SET_KEY, JSON.stringify([...characterSet]))
+        localStorage.setItem(LAST_UNDO_STACK_KEY, JSON.stringify(undoStack))
+
+    }
+}
+
 /**
  * @param {Element} el 
  * @returns {HTMLElement}
@@ -278,8 +478,9 @@ function handleFileInput(event) {
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
         }
-        console.log(file)
+        // console.log(file)
         fileNameInput.value = file.name.substring(0, file.name.length - 4)
+        switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
     }).catch(e => console.warn(e))
 }
 
@@ -319,7 +520,7 @@ function pruneEmptyInlineNodes(root) {
  */
 function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
-
+    undoStack.push()
     if (el.dataset.suggestion) { el.dataset.suggestion = ""; }
     if (el.tagName === "CHARACTER") addToCharacterSet(el.textContent)
 
@@ -353,7 +554,7 @@ function handleEnterKey(event, el, currentPage) {
     currentPage.insertBefore(newElement, el.nextSibling)
     if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
     setCursorPosition(newElement, 0)
-    console.log(newElement)
+    // console.log(newElement)
 }
 
 /**
@@ -397,6 +598,17 @@ function changeElementTo(el, newType, currentPage) {
     return newElement
 }
 
+function handleUndo(event) {
+    console.log("DEBUG:\tUndoing")
+    event.preventDefault();
+    undoStack.undo();
+}
+function handleRedo(event) {
+    event.preventDefault();
+    console.log("DEBUG:\tRedoing")
+    undoStack.redo()
+}
+
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el
@@ -404,11 +616,14 @@ function changeElementTo(el, newType, currentPage) {
  */
 function handleShortCut(event, el, currentPage) {
     const key = event.key.toLowerCase();
-    handleTextStyling(event, scriptWrapper)
-    if (!isNaN(parseInt(key))) {
+    if (STYLE_CLASSES[key]) { undoStack.push; handleTextStyling(event, scriptWrapper) }
+    else if (key === "z") handleUndo(event);
+    else if (key === "y") handleRedo(event);
+    else if (!isNaN(parseInt(key))) {
         for (const setting in scriptSettings) {
             if (scriptSettings[setting].Shortcut === key) {
                 event.preventDefault();
+                undoStack.push()
                 changeElementTo(el, setting, currentPage)
                 return
             }
@@ -423,7 +638,7 @@ function handleShortCut(event, el, currentPage) {
  */
 function handleTab(event, el, currentPage) {
     event.preventDefault();
-
+    undoStack.push()
     if (el.textContent && el.dataset.suggestion) {
         el.textContent += el.dataset.suggestion
         el.dataset.suggestion = ""
@@ -474,11 +689,17 @@ function handleDeletion(event, el, currentPage) {
     const elementIsEmpty = !el.textContent.trim();
     // console.log(isFirstElement, cursorAtStart, nothingSelected, elementIsEmpty, DELETE_INPUT_TYPES.includes(event.inputType))
     // console.log(allSelected)
+    // console.log(range.extractContents())
+    // console.log(range.startContainer)
+    // console.log(range.endContainer)
+    // console.log(getTextNodesInRange(range))
+    undoStack.push();
+
     if (isFirstElement && cursorAtStart && nothingSelected && elementIsEmpty && DELETE_INPUT_TYPES.includes(event.inputType)) {
         event.preventDefault()
     } else if (allSelected) {
         event.preventDefault();
-        newBlankScript();
+        newBlankScript(true);
     }
 }
 
@@ -552,7 +773,7 @@ function getScriptElementAndCurrentPage(node) {
     let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (scriptEl.tagName === "ARTICLE") {
         if (scriptEl.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
-            newBlankScript()
+            newBlankScript(true)
             return [scriptWrapper.firstChild, scriptWrapper.firstChild.firstChild]
         } else {
             return [scriptWrapper.firstChild, scriptWrapper.firstChild.firstChild]
@@ -565,15 +786,23 @@ function getScriptElementAndCurrentPage(node) {
         return [scriptEl, scriptEl.parentElement]
     };
 }
-
+/**
+ * 
+ * @param {HTMLElement} el 
+ */
+function switchLastFocusedElement(el) {
+    if (lastFocusedElement) lastFocusedElement.id = ""
+    lastFocusedElement = el;
+    lastFocusedElement.id = "lastFocused"
+}
 /**
  * @param {KeyboardEvent} e 
  * @param {HTMLElement} el 
  * @param {HTMLElement} page 
  */
 function handleArrowKeysUp(e, el, page) {
-    if (lastFocusedElement !== el && lastFocusedElement.dataset.suggestion) lastFocusedElement.dataset.suggestion = "";
-    lastFocusedElement = el;
+    if (lastFocusedElement !== el && lastFocusedElement.dataset && lastFocusedElement.dataset.suggestion) lastFocusedElement.dataset.suggestion = "";
+    switchLastFocusedElement(el)
 }
 
 /**
@@ -583,7 +812,7 @@ function handleKeyDown(event) {
     event.stopPropagation();
     const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
     if (event.key === "Tab") handleTab(event, child, currentPage)
-    else if (event.ctrlKey && event.key !== "Control") handleShortCut(event, child, currentPage)
+    else if ((event.ctrlKey && event.key !== "Control") || (event.metaKey && event.key !== "MetaKey")) handleShortCut(event, child, currentPage)
 }
 /**
  * @param {KeyboardEvent} event 
@@ -615,6 +844,8 @@ function handleBeforeInput(event) {
     } else if (DELETE_INPUT_TYPES.includes(event.inputType)) {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleDeletion(event, child, currentPage)
+    } else if (event.inputType === 'insertText' || event.inputType === 'insertFromPaste') {
+        undoStack.push();
     }
 }
 
@@ -690,15 +921,15 @@ function handleInput(event) {
     setCursorPosition(child, lastCursorPosition)
 
     if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
-        console.log("DEBUG:\tTrying to delete an empty script")
-        newBlankScript()
+        // console.log("DEBUG:\tTrying to delete an empty script")
+        newBlankScript(true)
     } // edge case where all elements are empty with <br>
     else {
         if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child, currentPage)
         else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage)
     }
 
-    lastFocusedElement = child;
+    switchLastFocusedElement(child);
     lastElementLineCount = newLineCount
 
 }
@@ -725,7 +956,7 @@ function HTMLtoFDX(doc, el) {
     for (let [i, subNode] of el.childNodes.entries()) {
         let textEl = doc.createElement("Text")
         if (subNode.nodeType === 1) { // a span
-            console.log(subNode)
+            // console.log(subNode)
             textEl.setAttribute("Style", [...subNode.classList].map(str => str.at(0).toUpperCase() + str.substring(1)).join('+'))
             for (let attr of ["AdornmentStyle", "Background", "Color", "Font", "RevisionID", "Size"]) {
                 textEl.setAttribute(attr, scriptSettings[htmlTag][attr])
@@ -760,11 +991,7 @@ function HTMLtoFDX(doc, el) {
             newTextEls.push(textEl)
         }
     }
-    // let maybeSpans = el.getElementsByTagName("span")
-    // for (let newSpan of maybeSpans){
-    //     console.log(newSpan)
-    // if (htmlTag === "parenthetical") textEl.textContent = `(${el.textContent})`;
-    // else textEl.textContent = el.textContent;
+
     for (let newEl of newTextEls) {
         doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('      '))
         paraEl.appendChild(newEl)
@@ -773,10 +1000,8 @@ function HTMLtoFDX(doc, el) {
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('    '))
     doc.getElementsByTagName("Content")[0].appendChild(paraEl)
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
-    // }
 }
 /**
- * 
  * @param {Document} doc 
  * @param {string} char 
  */
@@ -853,7 +1078,7 @@ async function loadDefaultSettings() {
                 defaultScriptSettings = LoadElSettings(doc);
                 scriptSettings = defaultScriptSettings
                 if (scriptSettings === null) throw "DEBUG:\t loadDefaultSettings -> Something went wrong loading scriptSettings"
-                else console.log("DEBUG:\t loadDefaultSettings -> Default settings loaded")
+                // else console.log("DEBUG:\t loadDefaultSettings -> Default settings loaded")
             })
             .catch(e => console.warn(e))
     } else {
@@ -861,7 +1086,11 @@ async function loadDefaultSettings() {
     }
 }
 
-function newBlankScript() {
+/**
+ * Loads or resets default settings, 
+ * @param {boolean} prserveCurrentInfo
+ */
+function newBlankScript(prserveCurrentInfo = false) {
     loadDefaultSettings().then(_ => {
         while (scriptWrapper.firstChild) {
             scriptWrapper.removeChild(scriptWrapper.firstChild)
@@ -874,10 +1103,15 @@ function newBlankScript() {
         newPage.classList.add("page")
         newPage.appendChild(newSceneHeading)
         scriptWrapper.appendChild(newPage)
-        setCursorPosition(newSceneHeading, 0)
-        lastFocusedElement = newSceneHeading;
+        switchLastFocusedElement(newSceneHeading);
+        setCursorPosition(lastFocusedElement, 0)
     }).catch(e => console.warn(e));
-    loadBlankXMLDoc().catch(e => console.warn(e))
+    if (!prserveCurrentInfo) {
+        loadBlankXMLDoc().catch(e => console.warn(e))
+        characterSet = new Set();
+        undoStack = new UndoStack();
+        fileNameInput.value = "New Script";
+    }
 }
 
 function replaceXMLContent() { }
@@ -895,6 +1129,31 @@ function getCharacterInfo(doc) {
     }
     return res
 }
+
+/**
+ * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, UndoStack|null]}
+ */
+function tryGetLastScreenplay() {
+    const lastScreenplay = localStorage.getItem(LAST_SCREENPLAY_KEY)
+    const lastScriptSettings = localStorage.getItem(LAST_SCRIPT_SETTINGS_KEY)
+    const lastOriginalXML = localStorage.getItem(LAST_XML_DOC_KEY)
+    const lastFileName = localStorage.getItem(LAST_FILE_NAME_KEY)
+    const lastCharSet = localStorage.getItem(LAST_CHARACTER_SET_KEY)
+    const lastUndoStack = localStorage.getItem(LAST_UNDO_STACK_KEY)
+    if (lastScreenplay) {
+        const domParser = new DOMParser()
+        const lastXMLDoc = domParser.parseFromString(lastOriginalXML, 'text/xml')
+        const parseError = lastXMLDoc.querySelector('parseerror')
+        if (parseError) {
+            console.error("Failed to parse stored xml", parseError.textContent)
+            lastXMLDoc === null;
+        }
+        return [true, lastScreenplay, JSON.parse(lastScriptSettings), lastXMLDoc, lastFileName, new Set(JSON.parse(lastCharSet)), JSON.parse(lastUndoStack)]
+    } else {
+        return [false, null, null, null, null]
+    }
+}
+
 /**
  * 
  * @param {string} str 
@@ -916,7 +1175,23 @@ scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("download-pdf").addEventListener('click', (e) => { alert("PDF Download not supported yet.") })
 document.getElementById("new-blank").addEventListener("click", newBlankScript)
-newBlankScript();
+window.addEventListener("visibilitychange", saveCurrentScreenplay)
+window.addEventListener("load", (e) => {
+    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastUndoStack] = tryGetLastScreenplay()
+    if (ok) {
+        scriptWrapper.innerHTML = lastScript
+        scriptSettings = lastSettings
+        originalXML = lastXMLDoc
+        fileNameInput.value = lastFileName
+        characterSet = lastCharacterSet;
+        undoStack = new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_)
+        switchLastFocusedElement(document.getElementById("lastFocused"))
+        setCursorPosition(lastFocusedElement, 0)
+        // TODO: restore scroll position as well
+    } else {
+        newBlankScript();
+    }
+})
 
 // Fuck it, let's just ask Claude
 /**
@@ -1041,7 +1316,7 @@ function setCursorPosition(element, position) {
     const applySelection = () => {
         selection.removeAllRanges();
         selection.addRange(range);
-        lastFocusedElement = element;
+        switchLastFocusedElement(element)
     };
 
     // Firefox sometimes computes the selection correctly right after a
@@ -1363,7 +1638,6 @@ const STYLE_CLASSES = { b: "bold", i: "italic", u: "underline" };
  */
 function handleTextStyling(event, editableRoot) {
     const key = event.key.toLowerCase();
-    if (!(event.ctrlKey || event.metaKey) || !STYLE_CLASSES[key]) return;
 
     event.preventDefault();
     toggleStyle(STYLE_CLASSES[key], editableRoot);
@@ -1373,7 +1647,7 @@ function toggleStyle(styleClass, editableRoot) {
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
     const range = selection.getRangeAt(0);
-
+    // console.log(range)
     if (range.collapsed) {
         toggleCaretStyle(styleClass);
     } else {
