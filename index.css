@@ -1,6 +1,8 @@
 :root {
-    line-height: 1.5;
+    /* line-height: 1.5; */
+    /* TODO: check if this is right*/
     font-weight: 400;
+    /* and this */
     /* font-size: 20px; */
     color-scheme: light dark;
     font-synthesis: none;
@@ -28,14 +30,15 @@ main {
 }
 
 #script-main {
-    counter-reset: page;
+    counter-reset: page scene;
 }
 
-.page::before {
-    content: counter(page);
+
+.page:not(:first-child)::before {
+    content: counter(page) ".";
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: .5in;
+    right: 1in;
 }
 
 .page {
@@ -45,7 +48,7 @@ main {
     line-height: 1;
     display: flex;
     flex-direction: column;
-    font-size: 11.75pt;
+    font-size: 12pt;
     outline: solid 1px black;
     width: 8.5in;
     height: 11in;
@@ -71,6 +74,7 @@ main {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+
     >.buttons {
         display: flex;
         flex-direction: row;
@@ -92,8 +96,24 @@ main {
 }
 
 sceneheading {
+    position: relative;
+    counter-increment: scene;
     padding-top: 32px;
 }
+
+sceneheading::before {
+    content: counter(scene);
+    position: absolute;
+    left: -.75in;
+}
+
+/* sceneheading::after { */
+    /* TODO: figure out how to do this because I'm already using the ::after for autocomplete suggestions*/
+    /* content: counter(scene); */
+    /* position: absolute; */
+    /* right: 1in; */
+    /* color:hotpink */
+/* } */
 
 shot {
     padding-top: 32px;
@@ -110,7 +130,7 @@ transition {
 
 character {
     padding-left: 2in;
-    padding-right: 3in;
+    padding-right: .25in;
     padding-top: 16px;
 }
 

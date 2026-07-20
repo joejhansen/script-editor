@@ -48,6 +48,29 @@ TODO: have those inline styles appear in the downloaded fdx
 
 7/17/16
 Feature checklist
-TODO: Current Page/Page count in top right
+DONE: Current Page/Page count in top right
 DONE-ISH: move all options to a sticky sidebar on either side
 TODO: make autocompletes consistent casing
+
+7/18/26
+TODO: add strikethrough, all-caps, highlight, and font color options
+TODO: replace character functionality (change name from one to other)
+TODO: add highlight character functionality (for dumb dumb actors who can't read so good)
+TODO: add watermark
+TODO: add target script length bar
+TODO: add revision functionality
+TODO: page locking
+TODO: add navigator
+        scenes 
+            order, title, location, summary, color, intro, length, page#, scene#, time, character arcs, character reference,
+        script notes 
+            order, name, type, color, date created, date modified, in script, page#, scene#, note text,
+        characters 
+            character name, role, gender, ethnicity, orientation, disability, age, occupation, dialogue, scenes, speaking scenes, non-speaking scenes, add/remove trait,
+            inclusivity analysis
+                trait pie charts (# of characters, dialogue)
+        tags (is this just scene headings???) 
+            order, color, length, page#, scene#, intro (int/ext), location, time, title, tags, 
+            categories, 
+                synopsis, cast members, background actors, stunts, vehicles, purpose, camera, special effects, wardrobe, makeup/hair, animals, animal wrangler, music, sound, art department, set dressing, greenery, special equipment, security, additional labor, visual effects, mechanical effects, music, notes, script day, until, sequence, location, comments,
+        export to csv for all of the above

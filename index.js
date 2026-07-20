@@ -1,14 +1,37 @@
+/**
+ * @typedef {{anchorBlockId: string, anchorOffset: number, focusBlockId: string, focusOffset: number}} SelectionCapture
+ */
+/**
+ * @typedef {{html:string, selection:SelectionCapture}} Snapshot
+ */
 class UndoStack {
-    constructor(limit = 100, undo = [], redo = []) {
+    /**
+     * @param {number} limit 
+     * @param {Snapshot[]} undo 
+     * @param {Snapshot[]} redo 
+     */
+    constructor(limit = 100, undo = [], redo = [], singleCharLast = false, singleAddLast = false, uid = 0) {
+        /** @type {Snapshot[]} */
         this.undo_ = undo;
+        /** @type {Snapshot[]} */
         this.redo_ = redo;
+        /** @type {number} */
         this.limit = limit;
+        /** @type {bool} */
+        this.singleDeleteLast = singleCharLast
+        /** @type {bool} */
+        this.singleAddLast = singleAddLast
+        /** @type {number} */
+        this.uid = uid
     }
-
+    /**
+     * 
+     * @returns {Snapshot}
+     */
     snapshot() {
         return {
+            selection: this.captureSelection(), // save/restore caret position too
             html: scriptWrapper.innerHTML,
-            selection: captureSelection(), // save/restore caret position too
         };
     }
 
@@ -33,14 +56,33 @@ class UndoStack {
         scriptWrapper.innerHTML = state.html;
         restoreSelection(state.selection);
     }
+    ensureId(el) { if (!el.id) el.id = `el-${this.uid++}`; return el.id; }
+    /**
+ * 
+ * @returns {SelectionCapture | null}
+ */
+    captureSelection() {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return null;
+
+        const range = sel.getRangeAt(0);
+
+        const anchorBlock = closestBlock(sel.anchorNode);
+        const focusBlock = closestBlock(sel.focusNode);
+        if (!anchorBlock || !focusBlock) return null;
+        return {
+            anchorBlockId: this.ensureId(anchorBlock),
+            anchorOffset: textOffsetWithinBlock(anchorBlock, sel.anchorNode, sel.anchorOffset),
+            focusBlockId: this.ensureId(focusBlock),
+            focusOffset: textOffsetWithinBlock(focusBlock, sel.focusNode, sel.focusOffset),
+        };
+    }
 }
-let uid = 0;
 /**
  * 
  * @param {HTMLElement} el 
  * @returns {string}
  */
-function ensureId(el) { if (!el.id) el.id = `el-${uid++}`; return el.id; }
 /**
  * 
  * @param {Node} node 
@@ -58,23 +100,6 @@ function closestBlock(node, root = scriptWrapper) {
     return null; // node wasn't inside a recognized block (shouldn't normally happen)
 }
 
-function captureSelection() {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return null;
-
-    const range = sel.getRangeAt(0);
-
-    const anchorBlock = closestBlock(sel.anchorNode);
-    const focusBlock = closestBlock(sel.focusNode);
-    if (!anchorBlock || !focusBlock) return null;
-
-    return {
-        anchorBlockId: ensureId(anchorBlock),
-        anchorOffset: textOffsetWithinBlock(anchorBlock, sel.anchorNode, sel.anchorOffset),
-        focusBlockId: ensureId(focusBlock),
-        focusOffset: textOffsetWithinBlock(focusBlock, sel.focusNode, sel.focusOffset),
-    };
-}
 
 /**
  * Convert a (node, offset) pair into a character offset relative to block.textContent 
@@ -105,6 +130,12 @@ function textOffsetWithinBlock(block, node, offset) {
 }
 // Walk a block's text nodes to find the (node, offset) pair
 // corresponding to a character offset into its overall textContent.
+/**
+ * 
+ * @param {HTMLElement} block 
+ * @param {number} charOffset 
+ * @returns {{node: Node, offset:number}}
+ */
 function findTextPosition(block, charOffset) {
     const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
     let remaining = charOffset;
@@ -114,7 +145,7 @@ function findTextPosition(block, charOffset) {
     while (node) {
         const len = node.textContent.length;
         if (remaining <= len) {
-            return { node, offset: remaining };
+            return { node: node, offset: remaining };
         }
         remaining -= len;
         last = node;
@@ -144,12 +175,16 @@ function resolveAnchor(anchor) {
     range.collapse(true);
     return range;
 }
+/**
+ * 
+ * @param {SelectionCapture} saved 
+ */
 function restoreSelection(saved) {
     if (!saved) return;
 
     const anchorBlock = document.getElementById(saved.anchorBlockId);
     const focusBlock = document.getElementById(saved.focusBlockId);
-    if (!anchorBlock || !focusBlock) return; // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
+    if (!anchorBlock || !focusBlock) { console.log("wtf"); return; } // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
 
     const anchorPos = findTextPosition(anchorBlock, saved.anchorOffset);
     const focusPos = findTextPosition(focusBlock, saved.focusOffset);
@@ -216,7 +251,8 @@ const HTML_TAG_NAMES = [
     "outline1",
     "outline2",
     "outline3",
-    "note"
+    "note",
+    "continued"
 ]
 const EXTENSION_REGEX = /\(([\w\.\-'])*\)?$/i
 const DEFAULT_EXTENSIONS = new Set([
@@ -384,7 +420,7 @@ function LoadElSettings(doc) {
     return res;
 }
 
-function saveCurrentScreenplay() {
+function saveCurrentScreenplay(e) {
     if (document.visibilityState === "hidden") {
         const xmlString = new XMLSerializer().serializeToString(originalXML);
         localStorage.setItem(LAST_SCREENPLAY_KEY, scriptWrapper.innerHTML)
@@ -474,13 +510,13 @@ function handleFileInput(event) {
         originalXML = doc;
         scriptSettings = LoadElSettings(doc)
         characterSet = getCharacterInfo(doc)
-        const screenplayPages = paginateScreenplay(XMLtoHTML(doc));
+        const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc));
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
         }
-        // console.log(file)
         fileNameInput.value = file.name.substring(0, file.name.length - 4)
         switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
+        undoStack = new UndoStack()
     }).catch(e => console.warn(e))
 }
 
@@ -492,7 +528,6 @@ function ensureLineHasContent(el) {
     }
     // Add exactly one <br> only if there's truly nothing left
     if (!el.childElementCount && !el.textContent) {
-        // console.log(el)
         el.appendChild(document.createElement('br'))
     }
 }
@@ -554,7 +589,6 @@ function handleEnterKey(event, el, currentPage) {
     currentPage.insertBefore(newElement, el.nextSibling)
     if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
     setCursorPosition(newElement, 0)
-    // console.log(newElement)
 }
 
 /**
@@ -599,13 +633,11 @@ function changeElementTo(el, newType, currentPage) {
 }
 
 function handleUndo(event) {
-    console.log("DEBUG:\tUndoing")
     event.preventDefault();
     undoStack.undo();
 }
 function handleRedo(event) {
     event.preventDefault();
-    console.log("DEBUG:\tRedoing")
     undoStack.redo()
 }
 
@@ -668,7 +700,7 @@ function handleTab(event, el, currentPage) {
         }
     }
 }
-
+let lastSnapshotElement = null
 /**
  * @param {InputEvent} event 
  * @param {Element} el 
@@ -687,14 +719,17 @@ function handleDeletion(event, el, currentPage) {
     const cursorAtStart = range.startOffset === 0 || range.startOffset === 1;
     const nothingSelected = selection.isCollapsed;
     const elementIsEmpty = !el.textContent.trim();
-    // console.log(isFirstElement, cursorAtStart, nothingSelected, elementIsEmpty, DELETE_INPUT_TYPES.includes(event.inputType))
-    // console.log(allSelected)
-    // console.log(range.extractContents())
-    // console.log(range.startContainer)
-    // console.log(range.endContainer)
-    // console.log(getTextNodesInRange(range))
-    undoStack.push();
-
+    if (!(el === lastSnapshotElement && undoStack.singleDeleteLast && selection.isCollapsed)) {
+        undoStack.singleAddLast = false;
+        lastSnapshotElement = el;
+        undoStack.push();
+        if (selection.isCollapsed && (event.inputType === "deleteContentBackward" || event.inputType === "deleteContentForward" || event.inputType === "deleteWordForward" || event.inputType === "deleteWordBackward")) {
+            undoStack.singleDeleteLast = true;
+        } else {
+            undoStack.singleDeleteLast = false;
+        }
+    }
+    // undoStack.push()
     if (isFirstElement && cursorAtStart && nothingSelected && elementIsEmpty && DELETE_INPUT_TYPES.includes(event.inputType)) {
         event.preventDefault()
     } else if (allSelected) {
@@ -720,23 +755,33 @@ function getChildElementIndex(child, parent) {
     return -1;
 }
 
-function getAllScreenplayElements() {
+/**
+ * 
+ * @param {HTMLElement} currentElement 
+ * @returns {[HTMLElement[], HTMLElementEventMap]}
+ */
+function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1) {
     let allElements = [];
     const pages = document.getElementsByClassName("page")
     let dialogueContinued = false;
     for (let i = 0; i < pages.length; i++) {
         for (let j = 0; j < pages[i].childElementCount; j++) {
             if (dialogueContinued) { j = 1; dialogueContinued = false; }
-            else if (pages[i].children[j].tagName.toLowerCase() === "continued") {
-                allElements[allElements.length - 1].textContent += ` ${pages[i + 1].children[1].textContent}`
+            else if (pages[i].children[j].tagName.toLowerCase() === "continued") { // TODO: fix this erasing second element's id for undo/redo purposes
+                if (currentElement && (currentElement === allElements[allElements.length - 1] || currentElement === pages[i + 1].children[1])) {
+                    if (currentElement === pages[i + 1].children[1]) { lastCursorPosition += allElements[allElements.length - 1].textContent.length + 1 }
+                    currentElement = allElements[allElements.length - 1]
+                }
+                allElements[allElements.length - 1].innerHTML += ` ${pages[i + 1].children[1].innerHTML}` // this doesn't work when there's a parenthetical in between
                 dialogueContinued = true;
             } else {
                 allElements.push(pages[i].children[j])
             }
         }
     }
-    return allElements;
+    return [allElements, currentElement, lastCursorPosition];
 }
+
 
 /**
  * 
@@ -745,17 +790,25 @@ function getAllScreenplayElements() {
  */
 function reformatScreenplay(currentElement, currentPage) {
     const lastScrollPosition = saveScrollPosition(currentElement);
-    const lastCursorPosition = getCursorPosition(currentElement)
+    let lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
     const currentPageI = getChildElementIndex(currentPage, scriptWrapper)
     const currentElementI = getChildElementIndex(currentElement, currentPage)
-    let allElements = getAllScreenplayElements();
+    // console.log(`DEBUG:\tLast cursor position -> ${lastCursorPosition}`)
+    // console.log(`DEBUG:\tTextContent length -> ${currentElement.textContent.length}`)
+    // console.log(`DEBUG:\tInnerHTML length -> ${currentElement.innerHTML.length}`)
+    const [allElements, combinedCurrentElement, combinedLastCursorPosition] = getAllScreenplayElements(currentElement, lastCursorPosition);
+    currentElement = combinedCurrentElement
+    lastCursorPosition = combinedLastCursorPosition
     emptyElement(scriptWrapper)
-    const newPages = paginateScreenplay(allElements)
+    const [newPages, newCurrentElement, newLastCursorPosition] = paginateScreenplay(allElements, currentElement, lastCursorPosition)
+    currentElement = newCurrentElement
+    lastCursorPosition = newLastCursorPosition
     for (const newPage of newPages) {
         scriptWrapper.appendChild(newPage)
     }
-    if (currentElement) {
+
+    if (scriptWrapper.contains(currentElement)) {
         setCursorPosition(currentElement, lastCursorPosition)
         restoreScrollPosition(currentElement, lastScrollPosition)
     } else { // edge case where the element doesn't exit anymore, probably because it's been split between pages like for dialogue
@@ -791,9 +844,9 @@ function getScriptElementAndCurrentPage(node) {
  * @param {HTMLElement} el 
  */
 function switchLastFocusedElement(el) {
-    if (lastFocusedElement) lastFocusedElement.id = ""
+    if (lastFocusedElement) lastFocusedElement.classList.remove("lastFocused")
     lastFocusedElement = el;
-    lastFocusedElement.id = "lastFocused"
+    lastFocusedElement.classList.add("lastFocused")
 }
 /**
  * @param {KeyboardEvent} e 
@@ -838,6 +891,8 @@ function handleFocusOut(event) {
  * @param {InputEvent} event 
  */
 function handleBeforeInput(event) {
+    // console.log(event.inputType)
+    // delete
     if (event.inputType === "insertParagraph") {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleEnterKey(event, child, currentPage)
@@ -845,7 +900,17 @@ function handleBeforeInput(event) {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleDeletion(event, child, currentPage)
     } else if (event.inputType === 'insertText' || event.inputType === 'insertFromPaste') {
-        undoStack.push();
+        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
+        if (!(child === lastSnapshotElement && undoStack.singleAddLast && event.inputType === "insertText")) {
+            undoStack.singleDeleteLast = false;
+            lastSnapshotElement = child;
+            undoStack.push();
+            if (event.inputType === "insertText") {
+                undoStack.singleAddLast = true;
+            } else {
+                undoStack.singleAddLast = false;
+            }
+        }
     }
 }
 
@@ -918,14 +983,10 @@ function handleInput(event) {
     let lastCursorPosition = getCursorPosition(child)
 
     handleAutocomplete(event, child, currentPage);
-    setCursorPosition(child, lastCursorPosition)
-
-    if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
-        // console.log("DEBUG:\tTrying to delete an empty script")
+    if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {// edge case where all elements are empty with <br>
         newBlankScript(true)
-    } // edge case where all elements are empty with <br>
-    else {
-        if (lastElementLineCount != newLineCount && lastFocusedElement === child) reformatScreenplay(child, currentPage)
+    } else {
+        if ((lastElementLineCount != newLineCount && lastFocusedElement === child) || !lastFocusedElement) reformatScreenplay(child, currentPage)
         else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage)
     }
 
@@ -956,7 +1017,6 @@ function HTMLtoFDX(doc, el) {
     for (let [i, subNode] of el.childNodes.entries()) {
         let textEl = doc.createElement("Text")
         if (subNode.nodeType === 1) { // a span
-            // console.log(subNode)
             textEl.setAttribute("Style", [...subNode.classList].map(str => str.at(0).toUpperCase() + str.substring(1)).join('+'))
             for (let attr of ["AdornmentStyle", "Background", "Color", "Font", "RevisionID", "Size"]) {
                 textEl.setAttribute(attr, scriptSettings[htmlTag][attr])
@@ -1021,7 +1081,7 @@ function downloadFDX(event) {
     event.preventDefault();
     const parser = new DOMParser()
     let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
-    const allElements = getAllScreenplayElements();
+    const [allElements, _, __] = getAllScreenplayElements();
     for (const el of allElements) {
         HTMLtoFDX(newContentDoc, el)
     }
@@ -1078,7 +1138,6 @@ async function loadDefaultSettings() {
                 defaultScriptSettings = LoadElSettings(doc);
                 scriptSettings = defaultScriptSettings
                 if (scriptSettings === null) throw "DEBUG:\t loadDefaultSettings -> Something went wrong loading scriptSettings"
-                // else console.log("DEBUG:\t loadDefaultSettings -> Default settings loaded")
             })
             .catch(e => console.warn(e))
     } else {
@@ -1091,27 +1150,26 @@ async function loadDefaultSettings() {
  * @param {boolean} prserveCurrentInfo
  */
 function newBlankScript(prserveCurrentInfo = false) {
-    loadDefaultSettings().then(_ => {
-        while (scriptWrapper.firstChild) {
-            scriptWrapper.removeChild(scriptWrapper.firstChild)
-        }
-
-        let newSceneHeading = document.createElement("sceneheading")
-        newSceneHeading.appendChild(document.createElement("br"))
-        let newPage = document.createElement("div")
-        newPage.setAttribute("contenteditable", "true")
-        newPage.classList.add("page")
-        newPage.appendChild(newSceneHeading)
-        scriptWrapper.appendChild(newPage)
-        switchLastFocusedElement(newSceneHeading);
-        setCursorPosition(lastFocusedElement, 0)
-    }).catch(e => console.warn(e));
     if (!prserveCurrentInfo) {
+        loadDefaultSettings().catch(e => console.warn(e));
         loadBlankXMLDoc().catch(e => console.warn(e))
         characterSet = new Set();
         undoStack = new UndoStack();
         fileNameInput.value = "New Script";
     }
+    while (scriptWrapper.firstChild) {
+        scriptWrapper.removeChild(scriptWrapper.firstChild)
+    }
+
+    let newSceneHeading = document.createElement("sceneheading")
+    newSceneHeading.appendChild(document.createElement("br"))
+    let newPage = document.createElement("div")
+    newPage.classList.add("page")
+    newPage.appendChild(newSceneHeading)
+    scriptWrapper.appendChild(newPage)
+    lastSnapshotElement = newSceneHeading
+    switchLastFocusedElement(newSceneHeading);
+    setCursorPosition(lastFocusedElement, 0)
 }
 
 function replaceXMLContent() { }
@@ -1174,18 +1232,29 @@ scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
 
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("download-pdf").addEventListener('click', (e) => { alert("PDF Download not supported yet.") })
-document.getElementById("new-blank").addEventListener("click", newBlankScript)
+document.getElementById("new-blank").addEventListener("click", (e) => { newBlankScript() })
 window.addEventListener("visibilitychange", saveCurrentScreenplay)
 window.addEventListener("load", (e) => {
     let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastUndoStack] = tryGetLastScreenplay()
     if (ok) {
-        scriptWrapper.innerHTML = lastScript
-        scriptSettings = lastSettings
-        originalXML = lastXMLDoc
-        fileNameInput.value = lastFileName
-        characterSet = lastCharacterSet;
-        undoStack = new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_)
-        switchLastFocusedElement(document.getElementById("lastFocused"))
+        scriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
+        
+        if (lastSettings) scriptSettings = lastSettings
+        else loadDefaultSettings();
+        
+        if (lastXMLDoc) originalXML = lastXMLDoc
+        else loadBlankXMLDoc();
+        
+        fileNameInput.value = lastFileName ? lastFileName : "New Script"
+        
+        characterSet = lastCharacterSet ? lastCharacterSet : new Set();
+        
+        undoStack = lastUndoStack ? new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_, lastUndoStack.singleDeleteLast, lastUndoStack.singleAddLast, lastUndoStack.uid) : new UndoStack()
+        
+        const maybeLastFocused = document.getElementsByClassName("lastFocused")[0];
+        if (maybeLastFocused) switchLastFocusedElement(maybeLastFocused)
+        else switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
+        
         setCursorPosition(lastFocusedElement, 0)
         // TODO: restore scroll position as well
     } else {
@@ -1409,11 +1478,13 @@ const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
  *
  * @param {HTMLElement[]} elements Flat array of screenplay element nodes, in
  *   script order.
+ * @param {HTMLElement} currentElement
+ * @param {number} lastCursorPosition
  * @param {PaginationOptions} [options]
- * @returns {HTMLElement[]} Array of page container elements, populated and
+ * @returns {[HTMLElement[], HTMLElement]} Array of page container elements, populated and
  *   detached (not yet appended anywhere).
  */
-function paginateScreenplay(elements, options = {
+function paginateScreenplay(elements, currentElement = null, lastCursorPosition = -1, options = {
     pageClassName: 'page',
     pageHeightIn: DEFAULT_PAGE_HEIGHT - DEFAULT_BOTTOM_MARGIN - DEFAULT_TOP_MARGIN,
     characterTagName: 'character',
@@ -1424,10 +1495,10 @@ function paginateScreenplay(elements, options = {
     minWordsAfterSplit: 4,
     isKeepWithNext: null,
 }) {
-    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH + 1;
+    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
 
     // Pass 1: measure everything in ONE reflow.
-    const heights = measureHeights(elements, options);
+    const heights = measureHeights(elements, options, pageHeightPx);
 
     const heightMap = new WeakMap();
     elements.forEach((el, i) => heightMap.set(el, heights[i]));
@@ -1483,8 +1554,8 @@ function paginateScreenplay(elements, options = {
             if (tag === options.dialogueTagName) {
                 const remaining = pageHeightPx - currentHeight;
                 const orphanCharacter = currentEls[currentEls.length - 1].tagName.toLowerCase() === options.characterTagName;
-                const split = attemptSplitDialogue(el, lastCharacterEl, remaining, options, scratch);
-
+                const [split, newCurrentElement, newLastCursorPosition] = attemptSplitDialogue(el, lastCharacterEl, remaining, options, scratch, currentElement, lastCursorPosition);
+                if (newCurrentElement) { currentElement = newCurrentElement; lastCursorPosition = newLastCursorPosition; }
                 if (split) {
                     currentEls.push(split.firstPart, split.continuedCue);
                     flushPage();
@@ -1495,6 +1566,7 @@ function paginateScreenplay(elements, options = {
                     heights.splice(i + 1, 0, secondPartHeight);
                     heightMap.set(split.secondPart, secondPartHeight);             // keep the map in sync
                 } else if (orphanCharacter) {
+                    // console.log(el)
                     const orphan = currentEls.pop();
                     currentHeight -= heightMap.get(orphan);   // known height, no measurement
                     startNewPage(orphan, heightMap.get(orphan));
@@ -1524,16 +1596,16 @@ function paginateScreenplay(elements, options = {
     pageBuckets.push(currentEls);
     document.body.removeChild(scratch);
     // Pass 3: build real pages, one batched write each — still no reads.
-    return pageBuckets.map((els, i) => {
+    return [pageBuckets.map((els, i) => {
         const page = createPage(options);
         const frag = document.createDocumentFragment();
         els.forEach(el => frag.appendChild(el));
         page.appendChild(frag);
         return page;
-    });
+    }), currentElement, lastCursorPosition];
 }
 
-function measureHeights(elements, options) {
+function measureHeights(elements, options, maxPageHeightPx) {
     const sandbox = document.createElement('div');
     Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none' });
     const measurePage = createPage(options);
@@ -1545,8 +1617,19 @@ function measureHeights(elements, options) {
     const frag = document.createDocumentFragment();
     clones.forEach(c => frag.appendChild(c));
     measurePage.appendChild(frag);           // one write
-
-    const heights = clones.map(c => c.getBoundingClientRect().height); // one reflow serves all reads
+    let currentPageHeight = 0;
+    const heights = clones.map((c) => { // TODO: refine this so it proparly accounts for there not being top padding on the first element of a page
+        let elementHeight = c.getBoundingClientRect().height
+        currentPageHeight += elementHeight
+        if (currentPageHeight > maxPageHeightPx) {
+            const maybePadding = getComputedStyle(c).paddingTop
+            elementHeight -= parseInt(maybePadding.substring(0, maybePadding.indexOf('p')))
+            // if (c.tagName !== "DIALOGUE") {
+            // }
+            currentPageHeight = elementHeight
+        }
+        return elementHeight
+    }); // one reflow serves all reads
 
     document.body.removeChild(sandbox);
     return heights;
@@ -1558,16 +1641,17 @@ function measureHeights(elements, options) {
  * the break, or not even minWordsBeforeSplit fits) — caller should then move the
  * whole character+dialogue pair to the next page instead.
  */
-function attemptSplitDialogue(dialogueEl, characterEl, remainingHeightPx, options, scratch) {
+function attemptSplitDialogue(dialogueEl, characterEl, remainingHeightPx, options, scratch, currentElement, lastCursorPosition) {
+    let newCurrentElement = false;
     const words = dialogueEl.textContent.trim().split(/\s+/);
     const { minWordsBeforeSplit: minBefore, minWordsAfterSplit: minAfter } = options;
 
-    if (words.length < minBefore + minAfter) return null;
+    if (words.length < minBefore + minAfter) return [null, null, null];
 
     const continuedCue = createContinuedElement(options);
     const continuedHeight = measureOne(continuedCue, scratch);
     const budget = remainingHeightPx - continuedHeight;
-    if (budget <= 0) return null;
+    if (budget <= 0) return [null, null, null];
 
     // Binary search the largest word count that still fits `budget`.
     let lo = minBefore;
@@ -1586,16 +1670,27 @@ function attemptSplitDialogue(dialogueEl, characterEl, remainingHeightPx, option
         }
     }
 
-    if (best === -1) return null; // even minWordsBeforeSplit overflows the remaining space
-
+    if (best === -1) return [null, null, null]; // even minWordsBeforeSplit overflows the remaining space
     const firstPart = cloneWithText(dialogueEl, words.slice(0, best).join(' '));
     const secondPart = cloneWithText(dialogueEl, words.slice(best).join(' '));
+    if (currentElement && currentElement === dialogueEl) {
+        newCurrentElement = true;
+        if (lastCursorPosition >= firstPart.textContent.length) {
+            currentElement = secondPart
+            lastCursorPosition -= firstPart.textContent.length + 1
+        } else {
+            currentElement = firstPart
+        }
+    }
     const nextPageCharacter = cloneWithText(
         characterEl,
         `${characterEl.textContent.trim()} ${options.contdText}`
     );
-
-    return { firstPart, continuedCue, nextPageCharacter, secondPart };
+    if (newCurrentElement) {
+        return [{ firstPart, continuedCue, nextPageCharacter, secondPart }, currentElement, lastCursorPosition];
+    } else {
+        return [{ firstPart, continuedCue, nextPageCharacter, secondPart }, null, null];
+    }
 }
 
 function createContinuedElement(options) {
@@ -1647,7 +1742,6 @@ function toggleStyle(styleClass, editableRoot) {
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
     const range = selection.getRangeAt(0);
-    // console.log(range)
     if (range.collapsed) {
         toggleCaretStyle(styleClass);
     } else {
