@@ -1340,6 +1340,7 @@ async function downloadPDF(e) {
                 });
             }
             for (const element of pageData.children) {
+                const AllCapsElements = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION"]
                 const elementStyles = window.getComputedStyle(element);
                 const font = resolveFont(fonts, elementStyles);
                 const color = rgb(0, 0, 0);
