@@ -5,12 +5,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" type="text/css" href="./index.css" />
+    <link rel="stylesheet" type="text/css" href="index.css" />
     <title>Free Script Editor</title>
 </head>
 
 <body>
     <main>
+        <div id="patch-notes">
+            <p>New in this version</p>
+            <ul>
+                <li>Print to PDF (still a work in progress)</li>
+            </ul>
+            <p>Known bugs</p>
+            <ul>
+                <li>Pagination makes pages <i>slightly</i> too short and page count <i>slightly</i> too large</li>
+                <li>Character elements don't continue properly when the first element of a new page is a parenthetical</li>
+                <li>Scene count doesn't appear on right side of scene headings</li>
+            </ul>
+        </div>
+
         <div id="options">
             <div class="buttons">
                 <div id="uploads">
@@ -28,19 +41,22 @@
                 <input type="text" name="file-name" id="file-name">
             </div>
             <div id="version-feedback">
-                <p>v0.18 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
-                        Feedback</a></p>
+                <p>v0.19 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
+                        Feedback</a>
+                </p>
 
             </div>
         </div>
+
         <article id="script-main" contenteditable="true">
             <div class="page">
                 <sceneheading><br></sceneheading>
             </div>
         </article>
     </main>
-
-    <script src="./index.js" type="text/javascript" defer></script>
+    <script src="@pdf-lib-fontkit/fontkit.umd.min.js"></script>
+    <script src="pdf-lib/pdf-lib.min.js"></script>
+    <script src="index.js" type="text/javascript" defer></script>
 </body>
 
 </html>

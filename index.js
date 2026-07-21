@@ -1,3 +1,6 @@
+const { PDFDocument, StandardFonts, rgb } = PDFLib
+const { fontkit } = window.fontkit
+
 /**
  * @typedef {{anchorBlockId: string, anchorOffset: number, focusBlockId: string, focusOffset: number}} SelectionCapture
  */
@@ -9,8 +12,11 @@ class UndoStack {
      * @param {number} limit 
      * @param {Snapshot[]} undo 
      * @param {Snapshot[]} redo 
+     * @param {boolean} singleDeleteLast
+     * @param {boolean} singleAddLast
+     * @param {number} lastUid
      */
-    constructor(limit = 100, undo = [], redo = [], singleCharLast = false, singleAddLast = false, uid = 0) {
+    constructor(limit = 100, undo = [], redo = [], singleDeleteLast = false, singleAddLast = false, lastUid = 0) {
         /** @type {Snapshot[]} */
         this.undo_ = undo;
         /** @type {Snapshot[]} */
@@ -18,14 +24,14 @@ class UndoStack {
         /** @type {number} */
         this.limit = limit;
         /** @type {bool} */
-        this.singleDeleteLast = singleCharLast
+        this.singleDeleteLast = singleDeleteLast
         /** @type {bool} */
         this.singleAddLast = singleAddLast
         /** @type {number} */
-        this.uid = uid
+        this.uid = lastUid
     }
+
     /**
-     * 
      * @returns {Snapshot}
      */
     snapshot() {
@@ -56,11 +62,16 @@ class UndoStack {
         scriptWrapper.innerHTML = state.html;
         restoreSelection(state.selection);
     }
-    ensureId(el) { if (!el.id) el.id = `el-${this.uid++}`; return el.id; }
+
     /**
- * 
- * @returns {SelectionCapture | null}
- */
+     * @param {HTMLElement} el 
+     * @returns {string}
+     */
+    ensureId(el) { if (!el.id) el.id = `el-${this.uid++}`; return el.id; }
+
+    /**
+     * @returns {SelectionCapture | null}
+     */
     captureSelection() {
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) return null;
@@ -78,13 +89,8 @@ class UndoStack {
         };
     }
 }
+
 /**
- * 
- * @param {HTMLElement} el 
- * @returns {string}
- */
-/**
- * 
  * @param {Node} node 
  * @param {HTMLElement?} root 
  * @returns {HTMLElement | null}
@@ -99,7 +105,6 @@ function closestBlock(node, root = scriptWrapper) {
     }
     return null; // node wasn't inside a recognized block (shouldn't normally happen)
 }
-
 
 /**
  * Convert a (node, offset) pair into a character offset relative to block.textContent 
@@ -128,10 +133,10 @@ function textOffsetWithinBlock(block, node, offset) {
     }
     return total + offset;
 }
-// Walk a block's text nodes to find the (node, offset) pair
-// corresponding to a character offset into its overall textContent.
+
 /**
- * 
+ * Walk a block's text nodes to find the (node, offset) pair
+ * corresponding to a character offset into its overall textContent.
  * @param {HTMLElement} block 
  * @param {number} charOffset 
  * @returns {{node: Node, offset:number}}
@@ -160,23 +165,7 @@ function findTextPosition(block, charOffset) {
     return { node: block, offset: 0 };
 }
 
-function resolveAnchor(anchor) {
-    const block = document.getElementById(anchor.startBlockId);
-    if (!block) throw new Error(`resolveAnchor: block ${anchor.startBlockId} no longer exists`);
-
-    const { node, offset } = findTextPosition(block, anchor.startOffset);
-    const range = document.createRange();
-
-    if (node === block) {
-        range.setStart(block, 0); // empty block, insert as first child
-    } else {
-        range.setStart(node, offset);
-    }
-    range.collapse(true);
-    return range;
-}
 /**
- * 
  * @param {SelectionCapture} saved 
  */
 function restoreSelection(saved) {
@@ -308,9 +297,19 @@ const LAST_CHARACTER_SET_KEY = "lastCharacterSet"
 const LAST_UNDO_STACK_KEY = "lastUndoStack"
 const LAST_SCROLL_POSITION_KEY = "lastScrollPosition"
 const LAST_CURSOR_POSITION_KEY = "lastCursorPosition"
+// const MAX_WIDTH_BY_TAG = {
+
+// }
+/**
+ * @param {HTMLElement} el 
+ * @returns {number}
+ */
+function getElementMaxWidth(el) {
+    const elStyles = window.getComputedStyle(el)
+    return (DEFAULT_PAGE_WIDTH - DEFAULT_RIGHT_MARGIN - DEFAULT_LEFT_MARGIN) * PIXELS_PER_INCH - parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p'))) - parseInt(elStyles.paddingRight.substring(0, elStyles.paddingRight.lastIndexOf('p')))
+}
 
 let scriptWrapper = document.getElementById("script-main");
-/** @type {HTMLInputElement} */
 let fileNameInput = document.getElementById("file-name")
 
 /** @type {ElementSettings | null} */
@@ -324,6 +323,7 @@ let originalXML = null
 /** @type {HTMLElement | null} */
 let lastFocusedElement = null;
 let lastElementLineCount = 1;
+let lastSnapshotElement = null
 
 /** @type {Set<string>} */
 let characterSet = new Set();
@@ -331,8 +331,6 @@ let lastCharacterUsed = "";
 let secondLastCharacterUsed = "";
 
 let undoStack = new UndoStack();
-
-
 
 /**
  * @typedef {Object} ElementSetting
@@ -420,6 +418,10 @@ function LoadElSettings(doc) {
     return res;
 }
 
+/**
+ * Saves screenplay innerHTML, settings object, original xml doc, file name, character set, and undo stack to local storage.
+ * @param {Event} e 
+ */
 function saveCurrentScreenplay(e) {
     if (document.visibilityState === "hidden") {
         const xmlString = new XMLSerializer().serializeToString(originalXML);
@@ -466,8 +468,6 @@ function XMLtoHTML(doc) {
     /** @type {Element[]} */
     let res = []
     contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
-    // const articleArea = document.getElementById("script-main")
-
     for (let el of contentEls) {
         res.push(EltoHTML(el))
     }
@@ -520,6 +520,9 @@ function handleFileInput(event) {
     }).catch(e => console.warn(e))
 }
 
+/**
+ * @param {HTMLElement} el 
+ */
 function ensureLineHasContent(el) {
     // Remove any stray <br> if the element actually has real content
     // (can happen after extractContents/pruning leaves one behind)
@@ -531,7 +534,9 @@ function ensureLineHasContent(el) {
         el.appendChild(document.createElement('br'))
     }
 }
-
+/**
+ * @param {HTMLElement} root 
+ */
 function pruneEmptyInlineNodes(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
     const toCheck = []
@@ -594,7 +599,7 @@ function handleEnterKey(event, el, currentPage) {
 /**
  * @param {string} type 
  * @param {string} textContent 
- * @returns {Element}
+ * @returns {HTMLElement}
  */
 function newScriptElement(type, textContent = "") {
     let newElement = document.createElement(type)
@@ -632,10 +637,16 @@ function changeElementTo(el, newType, currentPage) {
     return newElement
 }
 
+/**
+ * @param {KeyboardEvent} event 
+ */
 function handleUndo(event) {
     event.preventDefault();
     undoStack.undo();
 }
+/**
+ * @param {KeyboardEvent} event 
+ */
 function handleRedo(event) {
     event.preventDefault();
     undoStack.redo()
@@ -648,7 +659,7 @@ function handleRedo(event) {
  */
 function handleShortCut(event, el, currentPage) {
     const key = event.key.toLowerCase();
-    if (STYLE_CLASSES[key]) { undoStack.push; handleTextStyling(event, scriptWrapper) }
+    if (STYLE_CLASSES[key]) { undoStack.push(); handleTextStyling(event, scriptWrapper) }
     else if (key === "z") handleUndo(event);
     else if (key === "y") handleRedo(event);
     else if (!isNaN(parseInt(key))) {
@@ -700,7 +711,6 @@ function handleTab(event, el, currentPage) {
         }
     }
 }
-let lastSnapshotElement = null
 /**
  * @param {InputEvent} event 
  * @param {Element} el 
@@ -937,7 +947,7 @@ function completeStringFromSet(inputStr, autocompleteSet) {
     return "";
 }
 
-let lastAutocomplete = "";
+let lastAutocomplete = ""; // I'm not sure we need this, might just add more complexity than is needed
 /**
  * Autocomplete for character names, headings, and transitions
  * @param {InputEvent} event 
@@ -1007,7 +1017,7 @@ function tagToFDXType(tagStr) {
 
 /**
  * @param {Document} doc
- * @param {Element} el 
+ * @param {HTMLElement} el 
  */
 function HTMLtoFDX(doc, el) {
     let paraEl = doc.createElement("Paragraph")
@@ -1048,6 +1058,17 @@ function HTMLtoFDX(doc, el) {
             newTextEls.push(textEl)
             if (endingParen) newTextEls.push(endingParen)
         } else {
+            let maybeUserStyle = textEl.getAttribute("Style")
+            /** @type {string | null} */
+            let maybeSettingStyle = scriptSettings[htmlTag] ? scriptSettings[htmlTag].Style : null
+            if (maybeUserStyle && maybeSettingStyle) {
+                // FinalDraft handles styling by looking at its own settings EXCEPT when there are user defined styles as well
+                if (maybeSettingStyle.includes(maybeUserStyle)) {
+                    textEl.setAttribute("Style", maybeSettingStyle)
+                } else {
+                    textEl.setAttribute("Style", `${maybeUserStyle}+${maybeSettingStyle}`)
+                }
+            }
             newTextEls.push(textEl)
         }
     }
@@ -1079,39 +1100,48 @@ function addCharacterToXML(doc, char) {
  */
 function downloadFDX(event) {
     event.preventDefault();
-    const parser = new DOMParser()
-    let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
-    const [allElements, _, __] = getAllScreenplayElements();
-    for (const el of allElements) {
-        HTMLtoFDX(newContentDoc, el)
+    const button = event.target;
+    try {
+
+        const parser = new DOMParser()
+        let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
+        const [allElements, _, __] = getAllScreenplayElements();
+        for (const el of allElements) {
+            HTMLtoFDX(newContentDoc, el)
+        }
+        newContentDoc.getElementsByTagName("Content")[0].appendChild(newContentDoc.createTextNode('  '))
+
+        let newCharactersEl = parser.parseFromString(`<Characters>\n</Characters>`, "application/xml")
+        for (const character of characterSet) {
+            addCharacterToXML(newCharactersEl, character)
+        }
+        newCharactersEl.getElementsByTagName("Characters")[0].appendChild(newCharactersEl.createTextNode('      '))
+
+        let FDRoot = originalXML.getElementsByTagName("FinalDraft")[0];
+        FDRoot.replaceChild(newContentDoc.getElementsByTagName("Content")[0], FDRoot.getElementsByTagName("Content")[0])
+        FDRoot.getElementsByTagName("SmartType")[0].replaceChild(newCharactersEl.getElementsByTagName("Characters")[0], FDRoot.getElementsByTagName("SmartType")[0].getElementsByTagName("Characters")[0])
+
+
+        const serializer = new XMLSerializer();
+        const newXMLStr = serializer.serializeToString(originalXML)
+        const blob = new Blob([newXMLStr], { type: "application/xml" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url;
+        a.download = fileNameInput.value ? `${fileNameInput.value}.fdx` : `New Script.fdx`
+        a.click()
+
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error(e)
+        alert("Something went wrong downloading to FDX")
+    } finally {
+        button.disabled = false;
     }
-    newContentDoc.getElementsByTagName("Content")[0].appendChild(newContentDoc.createTextNode('  '))
-
-    let newCharactersEl = parser.parseFromString(`<Characters>\n</Characters>`, "application/xml")
-    for (const character of characterSet) {
-        addCharacterToXML(newCharactersEl, character)
-    }
-    newCharactersEl.getElementsByTagName("Characters")[0].appendChild(newCharactersEl.createTextNode('      '))
-
-    let FDRoot = originalXML.getElementsByTagName("FinalDraft")[0];
-    FDRoot.replaceChild(newContentDoc.getElementsByTagName("Content")[0], FDRoot.getElementsByTagName("Content")[0])
-    FDRoot.getElementsByTagName("SmartType")[0].replaceChild(newCharactersEl.getElementsByTagName("Characters")[0], FDRoot.getElementsByTagName("SmartType")[0].getElementsByTagName("Characters")[0])
-
-
-    const serializer = new XMLSerializer();
-    const newXMLStr = serializer.serializeToString(originalXML)
-    const blob = new Blob([newXMLStr], { type: "application/xml" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url;
-    a.download = fileNameInput.value ? `${fileNameInput.value}.fdx` : `New Script.fdx`
-    a.click()
-
-    URL.revokeObjectURL(url);
 
 }
 /**
- * @param {Element} el 
+ * @param {HTMLElement} el 
  */
 function emptyElement(el) {
     while (el.firstChild) el.removeChild(el.firstChild)
@@ -1147,10 +1177,10 @@ async function loadDefaultSettings() {
 
 /**
  * Loads or resets default settings, 
- * @param {boolean} prserveCurrentInfo
+ * @param {boolean} preserveCurrentInfo
  */
-function newBlankScript(prserveCurrentInfo = false) {
-    if (!prserveCurrentInfo) {
+function newBlankScript(preserveCurrentInfo = false) {
+    if (!preserveCurrentInfo) {
         loadDefaultSettings().catch(e => console.warn(e));
         loadBlankXMLDoc().catch(e => console.warn(e))
         characterSet = new Set();
@@ -1174,7 +1204,6 @@ function newBlankScript(prserveCurrentInfo = false) {
 
 function replaceXMLContent() { }
 /**
- * 
  * @param {Document} doc 
  * @returns {string[]}
  */
@@ -1189,6 +1218,8 @@ function getCharacterInfo(doc) {
 }
 
 /**
+ * Grabs the last screenplay innerHTML, script settings, original xml document, 
+ * file name, character set, and undo stack from local storage.
  * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, UndoStack|null]}
  */
 function tryGetLastScreenplay() {
@@ -1213,7 +1244,6 @@ function tryGetLastScreenplay() {
 }
 
 /**
- * 
  * @param {string} str 
  */
 function addToCharacterSet(str) {
@@ -1221,6 +1251,153 @@ function addToCharacterSet(str) {
     if (EXTENSION_REGEX.test(str)) str = str.substring(0, str.lastIndexOf('(')).trim();
     str = str.charAt(0).toUpperCase() + str.substring(1)
     characterSet.add(str)
+}
+
+/**
+ * @param {HTMLElement} el 
+ * @return {{x:number, y:number}}
+ */
+function getElementCoords(el) {
+    const elStyles = window.getComputedStyle(el)
+    return { x: el.offsetLeft + parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p'))), y: el.offsetTop + parseInt(elStyles.paddingTop.substring(0, elStyles.paddingTop.lastIndexOf('p'))) }
+}
+
+/**
+ * 
+ * @param {string} text 
+ * @param {*} font 
+ * @param {*} fontSize 
+ * @param {*} maxWidth 
+ * @returns 
+ */
+function wrapText(text, font, fontSize, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+
+    for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const width = font.widthOfTextAtSize(testLine, fontSize);
+        if (width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+}
+
+const POINTS_PER_INCH = 72;
+/**
+ * 
+ * @param {number} num 
+ * @returns {number}
+ */
+function pxToPt(num) { return num * (POINTS_PER_INCH / PIXELS_PER_INCH) }
+
+/**
+ * @param {Event} e 
+ */
+async function downloadPDF(e) {
+    e.preventDefault()
+    // const LETTER_PAGE_WIDTH = 612;
+    const LetterPageWidth = DEFAULT_PAGE_WIDTH * POINTS_PER_INCH;
+    // const LETTER_PAGE_HEIGHT = 792;
+    const LetterPageHeight = DEFAULT_PAGE_HEIGHT * POINTS_PER_INCH;
+    const button = event.target;
+    button.disabled = true; // simple guard against double-click while generating
+
+    try {
+        const pdfDoc = await PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit); // needed even for standard fonts in some pdf-lib versions; harmless either way
+
+        // --- Load fonts once, up front ---
+        const fonts = {
+            regular: await pdfDoc.embedFont(StandardFonts.Courier),
+            bold: await pdfDoc.embedFont(StandardFonts.CourierBold),
+            italic: await pdfDoc.embedFont(StandardFonts.CourierOblique),
+            boldItalic: await pdfDoc.embedFont(StandardFonts.CourierBoldOblique),
+        };
+
+        // --- Get your paginated document model ---
+        // REPLACE with your actual accessor, e.g. documentModel.getPages()
+        /** @type {HTMLCollectionOf<HTMLElement>} */
+        const allPages = document.getElementsByClassName('page');
+        let sceneCount = 1;
+        // for (const pageData of allPages) {
+        for (let i = 0; i < allPages.length; i++) {
+            const pageData = allPages[i];
+            const pdfPage = pdfDoc.addPage([LetterPageWidth, LetterPageHeight]);
+            if (i > 0) {
+                pdfPage.drawText(`${i + 1}.`, {
+                    x: LetterPageWidth - POINTS_PER_INCH, //1in from right
+                    y: LetterPageHeight - 0.5 * POINTS_PER_INCH, //.5in from top
+                    size: 12,
+                    font: fonts.regular,
+                    color: rgb(0, 0, 0),
+                });
+            }
+            for (const element of pageData.children) {
+                const elementStyles = window.getComputedStyle(element);
+                const font = resolveFont(fonts, elementStyles);
+                const color = rgb(0, 0, 0);
+                const elCoords = getElementCoords(element)
+                const fontSize = pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
+                const textLines = wrapText(AllCapsElements.includes(element.tagName) ? element.textContent.toUpperCase() : element.textContent, font, fontSize, pxToPt(getElementMaxWidth(element)))
+                elCoords.x = pxToPt(element.tagName === "TRANSITION" ? (DEFAULT_PAGE_WIDTH + DEFAULT_LEFT_MARGIN) * POINTS_PER_INCH - font.widthOfTextAtSize(element.textContent, fontSize) : elCoords.x)
+                elCoords.y = pxToPt(elCoords.y)
+
+                // Flip y: your model is top-left origin, PDF is bottom-left.
+                // This assumes element.y is the text's TOP position; drawText wants baseline.
+                // Rough baseline correction using font size — tune if text sits high/low vs your DOM render.
+                const pdfY = LetterPageHeight - elCoords.y - fontSize;
+
+                if (element.tagName === "SCENEHEADING") {
+                    pdfPage.drawText(sceneCount.toString(), { x: .75 * POINTS_PER_INCH, y: pdfY, size: fontSize, font, color })
+                    sceneCount++
+                }
+
+                for (const [i, line] of textLines.entries()) {
+                    let newLine = line;
+                    if (element.tagName === "PARENTHETICAL") {
+                        if (i === 0) newLine = `(${newLine}`
+                        if (i === textLines.length - 1) newLine += ')';
+                    }
+                    pdfPage.drawText(newLine, {
+                        x: elCoords.x,
+                        y: pdfY - (i * fontSize),
+                        size: fontSize,
+                        font,
+                        color,
+                    });
+                }
+                // if (element.type === 'text') {
+                // } else if (element.type === 'rule') {
+                //     // e.g. underline under scene heading, if you have any
+                //     pdfPage.drawLine({
+                //         start: { x: element.x1, y: PAGE_HEIGHT - element.y1 },
+                //         end: { x: element.x2, y: PAGE_HEIGHT - element.y2 },
+                //         thickness: element.thickness ?? 1,
+                //         color,
+                //     });
+                // }
+                // Add more element.type branches here (images, boxes) as needed.
+            }
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        triggerDownload(pdfBytes, fileNameInput.value + '.pdf');
+
+    } catch (err) {
+        console.error('PDF export failed:', err);
+        // Surface this to the user somehow — swallowing it silently will be confusing.
+        alert('Something went wrong generating the PDF. Please try again.');
+    } finally {
+        button.disabled = false;
+    }
+    // alert("PDF Download not supported yet.")
 }
 
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
@@ -1231,30 +1408,30 @@ scriptWrapper.addEventListener("input", handleInput)
 scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
 
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
-document.getElementById("download-pdf").addEventListener('click', (e) => { alert("PDF Download not supported yet.") })
+document.getElementById("download-pdf").addEventListener('click', downloadPDF)
 document.getElementById("new-blank").addEventListener("click", (e) => { newBlankScript() })
 window.addEventListener("visibilitychange", saveCurrentScreenplay)
 window.addEventListener("load", (e) => {
     let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastUndoStack] = tryGetLastScreenplay()
     if (ok) {
         scriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
-        
+
         if (lastSettings) scriptSettings = lastSettings
         else loadDefaultSettings();
-        
+
         if (lastXMLDoc) originalXML = lastXMLDoc
         else loadBlankXMLDoc();
-        
+
         fileNameInput.value = lastFileName ? lastFileName : "New Script"
-        
+
         characterSet = lastCharacterSet ? lastCharacterSet : new Set();
-        
+
         undoStack = lastUndoStack ? new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_, lastUndoStack.singleDeleteLast, lastUndoStack.singleAddLast, lastUndoStack.uid) : new UndoStack()
-        
+
         const maybeLastFocused = document.getElementsByClassName("lastFocused")[0];
         if (maybeLastFocused) switchLastFocusedElement(maybeLastFocused)
         else switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
-        
+
         setCursorPosition(lastFocusedElement, 0)
         // TODO: restore scroll position as well
     } else {
@@ -1264,7 +1441,6 @@ window.addEventListener("load", (e) => {
 
 // Fuck it, let's just ask Claude
 /**
- * 
  * @param {HTMLElement} element 
  * @param {ScrollPosition} state 
  */
@@ -1428,7 +1604,7 @@ function setCursorPosition(element, position) {
  */
 function createPage(options) {
     const page = document.createElement('div');
-    page.setAttribute("contenteditable", "true")
+    // page.setAttribute("contenteditable", "true")
     page.classList.add(options.pageClassName);
     Object.assign(page.style, {
         overflow: 'visible',
@@ -1481,7 +1657,7 @@ const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
  * @param {HTMLElement} currentElement
  * @param {number} lastCursorPosition
  * @param {PaginationOptions} [options]
- * @returns {[HTMLElement[], HTMLElement]} Array of page container elements, populated and
+ * @returns {[HTMLElement[], HTMLElement, number]} Array of page container elements, populated and
  *   detached (not yet appended anywhere).
  */
 function paginateScreenplay(elements, currentElement = null, lastCursorPosition = -1, options = {
@@ -1955,4 +2131,37 @@ function reselectNodes(selection, textNodes) {
     range.setEnd(last, last.length);
     selection.removeAllRanges();
     selection.addRange(range);
+}
+/**
+ * @param {{regular:any, bold:any, italic:any, boldItalic:any}} fonts 
+ * @param {CSSStyleDeclaration} element 
+ * @returns 
+ */
+function resolveFont(fonts, element) {
+    const isBold = element.fontWeight === 'bold' || element.fontWeight >= 700;
+    const isItalic = element.fontStyle === 'italic';
+    if (isBold && isItalic) return fonts.boldItalic;
+    if (isBold) return fonts.bold;
+    if (isItalic) return fonts.italic;
+    return fonts.regular;
+}
+
+function hexToRgb(hex) {
+    const clean = hex.replace('#', '');
+    const r = parseInt(clean.substring(0, 2), 16) / 255;
+    const g = parseInt(clean.substring(2, 4), 16) / 255;
+    const b = parseInt(clean.substring(4, 6), 16) / 255;
+    return rgb(r, g, b);
+}
+
+function triggerDownload(bytes, filename) {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }

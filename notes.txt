@@ -20,7 +20,7 @@ DONE: Pagination
 
 6/24/26
 TODO: Copy/paste
-TODO: better undo/redo tree
+DONE: better undo/redo tree
 
 6/25/26
 TODO: title page stuff
@@ -32,7 +32,7 @@ DONE: refactor claude code
 DONE: redo key input handling so that it works with pagination
 
 7/3/26
-TODO: Compile a TeX solution to wasm for conversion of html to TeX to pdf
+ABANDONED: Compile a TeX solution to wasm for conversion of html to TeX to pdf
     https://github.com/SwiftLaTeX/SwiftLaTeX
 
 7/13/26
@@ -74,3 +74,6 @@ TODO: add navigator
             categories, 
                 synopsis, cast members, background actors, stunts, vehicles, purpose, camera, special effects, wardrobe, makeup/hair, animals, animal wrangler, music, sound, art department, set dressing, greenery, special equipment, security, additional labor, visual effects, mechanical effects, music, notes, script day, until, sequence, location, comments,
         export to csv for all of the above
+
+7/21/26
+DONE-ISH: implement print to pdf with pdf-lib

@@ -61,6 +61,12 @@ main {
 .page>*:first-child {
     padding-top: 0;
 }
+#patch-notes{
+    width: 25ch;
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+}
 
 #options {
 
@@ -159,7 +165,8 @@ sceneheading {
 
 transition,
 character,
-sceneheading {
+sceneheading,
+shot {
     text-transform: uppercase;
 }
 
