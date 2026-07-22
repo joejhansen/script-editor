@@ -14,21 +14,56 @@
         <div id="patch-notes">
             <p>New in this version</p>
             <ul>
-                <li>Print to PDF (still a work in progress)</li>
+                <li>Title page editing and download to PDF/FDX</li>
             </ul>
             <p>Known bugs</p>
             <ul>
                 <li>Pagination makes pages <i>slightly</i> too short and page count <i>slightly</i> too large</li>
-                <li>Character elements don't continue properly when the first element of a new page is a parenthetical</li>
+                <li>Character elements don't continue properly when the first element of a new page is a parenthetical
+                </li>
                 <li>Scene count doesn't appear on right side of scene headings</li>
             </ul>
         </div>
 
         <div id="options">
-            <div class="buttons">
+            <!-- <div id="formatting-menu">
+                <div id="menu-buttons">
+                    <button popovertarget="home-menu">Home</button>
+                    <button popovertarget="file-menu">File</button>
+                    <button popovertarget="edit-menu">Edit</button>
+                    <button popovertarget="view-menu">View</button>
+                    <button popovertarget="format-menu">Format</button>
+                    <button popovertarget="insert-menu">Insert</button>
+                    <button popovertarget="document-menu">Document</button>
+                    <button popovertarget="tools-menu">Tools</button>
+                    <button popovertarget="production-menu">Production</button>
+                    <button popovertarget="help-menu">Help</button>
+                </div>
+                <div id="menu-popovers">
+                    <div id="home-menu" popover></div>
+                    <div id="file-menu" popover></div>
+                    <div id="edit-menu" popover></div>
+                    <div id="view-menu" popover></div>
+                    <div id="format-menu" popover></div>
+                    <div id="insert-menu" popover></div>
+                    <div id="document-menu" popover></div>
+                    <div id="tools-menu" popover></div>
+                    <div id="production-menu" popover></div>
+                    <div id="help-menu" popover></div>
+                </div>
+            </div> -->
+            <div id="selectables">
+
                 <div id="uploads">
                     <input type="file" id="script-upload" accept=".fdx" />
                     <button id="new-blank">New Blank Script</button>
+                </div>
+                <div id="file-name-wrapper">
+                    <label for="file-name">File Name</label>
+                    <input type="text" name="file-name" id="file-name">
+                </div>
+                <div id="title-toggle-wrapper">
+                    <button id="title-page-toggle">Edit Title Page</button>
                 </div>
                 <div id="downloads">
                     <p>Download as</p>
@@ -36,15 +71,11 @@
                     <button id="download-fdx">FDX</button>
                 </div>
             </div>
-            <div>
-                <label for="file-name">File Name</label>
-                <input type="text" name="file-name" id="file-name">
-            </div>
             <div id="version-feedback">
-                <p>v0.19.1 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
+                <p>v0.21 <a
+                        href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
                         Feedback</a>
                 </p>
-
             </div>
         </div>
 

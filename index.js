@@ -2,7 +2,7 @@ const { PDFDocument, StandardFonts, rgb } = PDFLib
 const { fontkit } = window.fontkit
 
 /**
- * @typedef {{anchorBlockId: string, anchorOffset: number, focusBlockId: string, focusOffset: number}} SelectionCapture
+ * @typedef {{anchorBlockId: string, anchorOffset: number, focusBlockId: string, focusOffset: number, scrollPosition: {top:number, left:number }}} SelectionCapture
  */
 /**
  * @typedef {{html:string, selection:SelectionCapture}} Snapshot
@@ -42,12 +42,14 @@ class UndoStack {
     }
 
     push() {
+        if (editingTitlePage) return;
         this.undo_.push(this.snapshot());
         this.redo_.length = 0;
         if (this.undo_.length > this.limit) this.undo_.shift();
     }
 
     undo() {
+        if (editingTitlePage) return;
         if (!this.undo_.length) return;
         this.redo_.push(this.snapshot());
         const state = this.undo_.pop();
@@ -56,6 +58,7 @@ class UndoStack {
     }
 
     redo() {
+        if (editingTitlePage) return;
         if (!this.redo_.length) return;
         this.undo_.push(this.snapshot());
         const state = this.redo_.pop();
@@ -86,6 +89,7 @@ class UndoStack {
             anchorOffset: textOffsetWithinBlock(anchorBlock, sel.anchorNode, sel.anchorOffset),
             focusBlockId: this.ensureId(focusBlock),
             focusOffset: textOffsetWithinBlock(focusBlock, sel.focusNode, sel.focusOffset),
+            scrollPosition: saveScrollPosition()
         };
     }
 }
@@ -194,6 +198,7 @@ function restoreSelection(saved) {
             focusPos.node === focusBlock ? 0 : focusPos.offset
         );
     }
+    if (saved.scrollPosition) restoreScrollPosition(saved.scrollPosition)
 }
 
 // Everything in inches
@@ -241,7 +246,8 @@ const HTML_TAG_NAMES = [
     "outline2",
     "outline3",
     "note",
-    "continued"
+    "continued",
+    "titletext"
 ]
 const EXTENSION_REGEX = /\(([\w\.\-'])*\)?$/i
 const DEFAULT_EXTENSIONS = new Set([
@@ -290,6 +296,7 @@ const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
 const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward", "deleteByCut"]
 const ARROW_KEYS = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"]
 const LAST_SCREENPLAY_KEY = "lastScreenplay";
+const LAST_TITLE_PAGE_KEY = "lastTitlePage"
 const LAST_SCRIPT_SETTINGS_KEY = "lastScriptSettings"
 const LAST_XML_DOC_KEY = "lastXMLDoc"
 const LAST_FILE_NAME_KEY = "lastFileName"
@@ -297,9 +304,10 @@ const LAST_CHARACTER_SET_KEY = "lastCharacterSet"
 const LAST_UNDO_STACK_KEY = "lastUndoStack"
 const LAST_SCROLL_POSITION_KEY = "lastScrollPosition"
 const LAST_CURSOR_POSITION_KEY = "lastCursorPosition"
-// const MAX_WIDTH_BY_TAG = {
+/** Left, Center, and Right respectively */
+const ALIGNMENT_SHORTCUT_KEYS = ["l", "e", "r"]
+const ALIGNMENT_SHORTCUT_TO_RULE = ["left", "center", "right"]
 
-// }
 /**
  * @param {HTMLElement} el 
  * @returns {number}
@@ -329,6 +337,12 @@ let lastSnapshotElement = null
 let characterSet = new Set();
 let lastCharacterUsed = "";
 let secondLastCharacterUsed = "";
+let titlePageOuterHTML = "";
+let editingTitlePage = false;
+let scriptInnerHTML = "";
+
+/** @type {HTMLButtonElement} */
+let titlePageButton = document.getElementById("title-page-toggle")
 
 let undoStack = new UndoStack();
 
@@ -425,13 +439,17 @@ function LoadElSettings(doc) {
 function saveCurrentScreenplay(e) {
     if (document.visibilityState === "hidden") {
         const xmlString = new XMLSerializer().serializeToString(originalXML);
-        localStorage.setItem(LAST_SCREENPLAY_KEY, scriptWrapper.innerHTML)
+        if (editingTitlePage) titlePageOuterHTML = scriptWrapper.innerHTML
+        else scriptInnerHTML = scriptWrapper.innerHTML
+        localStorage.setItem(LAST_SCREENPLAY_KEY, scriptInnerHTML)
+        localStorage.setItem(LAST_TITLE_PAGE_KEY, titlePageOuterHTML)
         localStorage.setItem(LAST_SCRIPT_SETTINGS_KEY, JSON.stringify(scriptSettings))
         localStorage.setItem(LAST_XML_DOC_KEY, xmlString)
         localStorage.setItem(LAST_FILE_NAME_KEY, fileNameInput.value)
         localStorage.setItem(LAST_CHARACTER_SET_KEY, JSON.stringify([...characterSet]))
         localStorage.setItem(LAST_UNDO_STACK_KEY, JSON.stringify(undoStack))
-
+        localStorage.setItem(LAST_SCROLL_POSITION_KEY, JSON.stringify(saveScrollPosition()))
+        localStorage.setItem(LAST_CURSOR_POSITION_KEY, getCursorPosition(lastFocusedElement))
     }
 }
 
@@ -495,6 +513,67 @@ function parseXMLString(xmlString) {
     return doc;
 }
 
+/** @typedef {{textAlign:string, firstIndent:number, leading:string, leftIndent:number, rightindent:number, spaceBefore:number, spacing:number, startsNewPage:boolean}} TitleTextStyles */
+/**
+ * 
+ * @param {HTMLElement} el 
+ * @param {TitleTextStyles} styles 
+ */
+function assignTitleTextStyles(el, styles) {
+    el.style.textAlign = styles.textAlign === "Full" ? "Left" : styles.textAlign;
+    el.style.textIndent = styles.firstIndent.toString() + "in";
+    el.style.paddingLeft = (1 - styles.leftIndent).toString() + "in";
+    el.style.paddingRight = (1 + styles.rightindent - 8.5).toString() + "in";
+    el.style.paddingTop = styles.spaceBefore.toString() + "in"
+    el.style.lineHeight = styles.spacing.toString() + "rem"
+}
+
+/**
+ * @param {Element} para 
+ * @returns {TitleTextStyles}
+ */
+function getTitleParagraphStyles(para) {
+    return {
+        textAlign: para.getAttribute("Alignment"),
+        firstIndent: parseInt(para.getAttribute("FirstIndent")),
+        leading: para.getAttribute("Leading"),
+        leftIndent: parseInt(para.getAttribute("LeftIndent")),
+        rightindent: parseInt(para.getAttribute("RightIndent")),
+        spaceBefore: parseInt(para.getAttribute("SpaceBefore")),
+        spacing: parseInt(para.getAttribute("Spacing")),
+        startsNewPage: para.getAttribute("StartsNewPage") === "Yes" ? true : false,
+    }
+}
+/**
+ * 
+ * @param {Document} doc 
+ * @returns {HTMLElement[]}
+ */
+function loadTitlePage(doc) {
+    const titleContent = doc.getElementsByTagName("TitlePage")[0].getElementsByTagName("Content")[0]
+    let titleTexts = [];
+    for (const titlePara of titleContent.children) {
+        const paraStyle = getTitleParagraphStyles(titlePara)
+        const newTitleText = document.createElement("titleText")
+        assignTitleTextStyles(newTitleText, paraStyle)
+        if (!titlePara.childElementCount) {
+            newTitleText.appendChild(document.createElement("br"))
+        } else {
+            for (const textEl of titlePara.children) {
+                if (textEl.textContent) {
+                    newTitleText.textContent += textEl.textContent
+                } else if (!newTitleText.textContent) {
+                    newTitleText.appendChild(document.createElement("br"))
+                }
+
+            }
+        }
+        titleTexts.push(newTitleText)
+    }
+    const [titlePages, _, __] = paginateScreenplay(titleTexts)
+    return titlePages
+}
+
 /**
  * @param {Event} event 
  */
@@ -510,13 +589,17 @@ function handleFileInput(event) {
         originalXML = doc;
         scriptSettings = LoadElSettings(doc)
         characterSet = getCharacterInfo(doc)
+        titlePageOuterHTML = loadTitlePage(doc).map(e => e.outerHTML).join('')
         const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc));
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
         }
         fileNameInput.value = file.name.substring(0, file.name.length - 4)
         switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
+        setCursorPosition(lastFocusedElement, 0)
+        scriptInnerHTML = scriptWrapper.innerHTML
         undoStack = new UndoStack()
+        editingTitlePage = false;
     }).catch(e => console.warn(e))
 }
 
@@ -582,8 +665,14 @@ function handleEnterKey(event, el, currentPage) {
     // selection.removeAllRanges()
 
     const tailFragment = tailRange.extractContents()
-
-    const newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.replace(/\s/g, "").toLowerCase())
+    /** @type {HTMLElement} */
+    let newElement = null;
+    if (el.tagName === "TITLETEXT") {
+        newElement = el.cloneNode(true)
+        newElement.textContent = "";
+    } else {
+        newElement = newScriptElement(scriptSettings[el.tagName.toLowerCase()].ReturnKey.replace(/\s/g, "").toLowerCase())
+    }
     newElement.innerHTML = ""
     newElement.appendChild(tailFragment)
 
@@ -653,6 +742,17 @@ function handleRedo(event) {
 }
 
 /**
+ * 
+ * @param {KeyboardEvent} e 
+ * @param {HTMLElement} el 
+ * @param {HTMLElement} page 
+ */
+function handleTitleAlignment(e, el, page) {
+    e.preventDefault()
+    el.style.textAlign = ALIGNMENT_SHORTCUT_TO_RULE.at(ALIGNMENT_SHORTCUT_KEYS.indexOf(e.key.toLowerCase()))
+}
+
+/**
  * @param {KeyboardEvent} event 
  * @param {Element} el
  * @param {Element} currentPage
@@ -660,8 +760,12 @@ function handleRedo(event) {
 function handleShortCut(event, el, currentPage) {
     const key = event.key.toLowerCase();
     if (STYLE_CLASSES[key]) { undoStack.push(); handleTextStyling(event, scriptWrapper) }
+    else if (key === "o") { event.preventDefault(); document.getElementById("script-upload").click() }
+    else if (key === "p") { event.preventDefault(); document.getElementById("download-pdf").click() }
+    else if (key === "s") { event.preventDefault(); document.getElementById("download-fdx").click() }
     else if (key === "z") handleUndo(event);
     else if (key === "y") handleRedo(event);
+    else if (editingTitlePage && ALIGNMENT_SHORTCUT_KEYS.includes(key)) handleTitleAlignment(event, el, currentPage)
     else if (!isNaN(parseInt(key))) {
         for (const setting in scriptSettings) {
             if (scriptSettings[setting].Shortcut === key) {
@@ -688,6 +792,15 @@ function handleTab(event, el, currentPage) {
         setCursorPosition(el, el.textContent.length)
         return;
     }
+    if (el.tagName === "TITLETEXT") {
+        let newTitleText = el.cloneNode(true)
+        newTitleText.textContent = "";
+        newTitleText.appendChild(document.createElement('br'))
+        currentPage.insertBefore(newTitleText, el.nextSibling)
+        setCursorPosition(newTitleText, 0)
+        return
+    }
+
     let newElShortcut = scriptSettings[el.tagName.toLowerCase()].Shortcut;
     if (event.shiftKey) {
         if (newElShortcut === '0') newElShortcut = ":";
@@ -744,7 +857,20 @@ function handleDeletion(event, el, currentPage) {
         event.preventDefault()
     } else if (allSelected) {
         event.preventDefault();
-        newBlankScript(true);
+        if (el.tagName === "TITLETEXT") {
+            let newTitleText = currentPage.firstChild.cloneNode(true)
+            newTitleText.textContent = ""
+            newTitleText.appendChild(document.createElement("br"))
+            let newTitlePage = document.createElement("div")
+            newTitlePage.classList.add("page")
+            emptyElement(scriptWrapper)
+            newTitlePage.appendChild(newTitleText)
+            scriptWrapper.appendChild(newTitlePage)
+            switchLastFocusedElement(newTitleText)
+            setCursorPosition(lastFocusedElement, 0)
+        } else {
+            newBlankScript(true);
+        }
     }
 }
 
@@ -799,14 +925,11 @@ function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1
  * @param {HTMLElement} currentPage 
  */
 function reformatScreenplay(currentElement, currentPage) {
-    const lastScrollPosition = saveScrollPosition(currentElement);
+    const lastScrollPosition = saveScrollPosition();
     let lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
     const currentPageI = getChildElementIndex(currentPage, scriptWrapper)
     const currentElementI = getChildElementIndex(currentElement, currentPage)
-    // console.log(`DEBUG:\tLast cursor position -> ${lastCursorPosition}`)
-    // console.log(`DEBUG:\tTextContent length -> ${currentElement.textContent.length}`)
-    // console.log(`DEBUG:\tInnerHTML length -> ${currentElement.innerHTML.length}`)
     const [allElements, combinedCurrentElement, combinedLastCursorPosition] = getAllScreenplayElements(currentElement, lastCursorPosition);
     currentElement = combinedCurrentElement
     lastCursorPosition = combinedLastCursorPosition
@@ -818,28 +941,23 @@ function reformatScreenplay(currentElement, currentPage) {
         scriptWrapper.appendChild(newPage)
     }
 
-    if (scriptWrapper.contains(currentElement)) {
-        setCursorPosition(currentElement, lastCursorPosition)
-        restoreScrollPosition(currentElement, lastScrollPosition)
-    } else { // edge case where the element doesn't exit anymore, probably because it's been split between pages like for dialogue
-        setCursorPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastCursorPosition)
-        restoreScrollPosition(scriptWrapper.children[currentPageI].children[currentElementI], lastScrollPosition)
-    }
+    setCursorPosition(currentElement, lastCursorPosition)
+    restoreScrollPosition(lastScrollPosition)
 }
 
 /**
  * 
  * @param {Node} node
- * @returns {[HTMLElement, HTMLElement]} 
+ * @returns {[HTMLElement, HTMLElement]} A child script element and the page it exists within
  */
 function getScriptElementAndCurrentPage(node) {
     let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (scriptEl.tagName === "ARTICLE") {
         if (scriptEl.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
             newBlankScript(true)
-            return [scriptWrapper.firstChild, scriptWrapper.firstChild.firstChild]
+            return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
         } else {
-            return [scriptWrapper.firstChild, scriptWrapper.firstChild.firstChild]
+            return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
         }
     }
     else {
@@ -901,8 +1019,6 @@ function handleFocusOut(event) {
  * @param {InputEvent} event 
  */
 function handleBeforeInput(event) {
-    // console.log(event.inputType)
-    // delete
     if (event.inputType === "insertParagraph") {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleEnterKey(event, child, currentPage)
@@ -1094,7 +1210,32 @@ function addCharacterToXML(doc, char) {
     doc.getElementsByTagName("Characters")[0].appendChild(newCharEl)
     doc.getElementsByTagName("Characters")[0].appendChild(doc.createTextNode('\n'))
 }
-
+/**
+ * 
+ * @param {Document} doc 
+ * @param {HTMLCollectionOf<HTMLElement>} textEls 
+ */
+function addTitlePageToXML(doc, textEls) {
+    for (const textEl of textEls) {
+        let newPara = doc.createElement("Paragraph")
+        const textElStyles = window.getComputedStyle(textEl)
+        newPara.setAttribute("Alignment", textElStyles.textAlign.at(0).toUpperCase() + textElStyles.textAlign.substring(1))
+        newPara.setAttribute("FirstIndent", parseInt(textElStyles.textIndent.substring(0, textElStyles.textIndent.lastIndexOf('p'))) / 96)
+        newPara.setAttribute("Leading", "Regular")
+        newPara.setAttribute("LeftIndent", 1 + parseInt(textElStyles.paddingLeft.substring(0, textElStyles.paddingLeft.lastIndexOf('p'))) / 96)
+        newPara.setAttribute("RightIndent", 7.5 - parseInt(textElStyles.paddingRight.substring(0, textElStyles.paddingRight.lastIndexOf('p'))) / 96)
+        newPara.setAttribute("SpaceBefore", parseInt(textElStyles.paddingTop.substring(0, textElStyles.paddingTop.lastIndexOf('p'))) / 96)
+        newPara.setAttribute("Spacing", parseInt(textElStyles.lineHeight.substring(0, textElStyles.lineHeight.lastIndexOf('p'))) / 16)
+        newPara.setAttribute("StartsNewPage", "No")
+        let newTextEl = doc.createElement("Text")
+        newTextEl.textContent = textEl.textContent
+        newPara.appendChild(newTextEl)
+        doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('      '))
+        doc.getElementsByTagName("Content")[0].appendChild(newPara)
+        doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
+    }
+    doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('    '))
+}
 /**
  * @param {Event}
  */
@@ -1104,6 +1245,12 @@ function downloadFDX(event) {
     try {
 
         const parser = new DOMParser()
+
+        if (!editingTitlePage) titlePageButton.click();
+        let newTitlePageContent = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
+        addTitlePageToXML(newTitlePageContent, document.getElementsByTagName("titletext"))
+        titlePageButton.click();
+
         let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
         const [allElements, _, __] = getAllScreenplayElements();
         for (const el of allElements) {
@@ -1117,7 +1264,9 @@ function downloadFDX(event) {
         }
         newCharactersEl.getElementsByTagName("Characters")[0].appendChild(newCharactersEl.createTextNode('      '))
 
+
         let FDRoot = originalXML.getElementsByTagName("FinalDraft")[0];
+        FDRoot.getElementsByTagName("TitlePage")[0].replaceChild(newTitlePageContent.getElementsByTagName("Content")[0], FDRoot.getElementsByTagName("TitlePage")[0].getElementsByTagName("Content")[0])
         FDRoot.replaceChild(newContentDoc.getElementsByTagName("Content")[0], FDRoot.getElementsByTagName("Content")[0])
         FDRoot.getElementsByTagName("SmartType")[0].replaceChild(newCharactersEl.getElementsByTagName("Characters")[0], FDRoot.getElementsByTagName("SmartType")[0].getElementsByTagName("Characters")[0])
 
@@ -1152,7 +1301,7 @@ async function loadBlankXMLDoc() {
         fetch("BlankFD13.fdx")
             .then(res => res.text())
             .then(text => parseXMLString(text))
-            .then(doc => { blankScriptXML = doc; originalXML = blankScriptXML; })
+            .then(doc => { titlePageOuterHTML = loadTitlePage(doc).map(e => e.outerHTML).join(); blankScriptXML = doc; originalXML = blankScriptXML; })
             .catch(e => console.warn(e))
     } else {
         originalXML = blankScriptXML
@@ -1190,7 +1339,6 @@ function newBlankScript(preserveCurrentInfo = false) {
     while (scriptWrapper.firstChild) {
         scriptWrapper.removeChild(scriptWrapper.firstChild)
     }
-
     let newSceneHeading = document.createElement("sceneheading")
     newSceneHeading.appendChild(document.createElement("br"))
     let newPage = document.createElement("div")
@@ -1200,6 +1348,7 @@ function newBlankScript(preserveCurrentInfo = false) {
     lastSnapshotElement = newSceneHeading
     switchLastFocusedElement(newSceneHeading);
     setCursorPosition(lastFocusedElement, 0)
+    editingTitlePage = false;
 }
 
 function replaceXMLContent() { }
@@ -1220,15 +1369,19 @@ function getCharacterInfo(doc) {
 /**
  * Grabs the last screenplay innerHTML, script settings, original xml document, 
  * file name, character set, and undo stack from local storage.
- * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, UndoStack|null]}
+ * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, UndoStack|null, {top:number, left:number} | null, number|null, string|null]}
  */
 function tryGetLastScreenplay() {
     const lastScreenplay = localStorage.getItem(LAST_SCREENPLAY_KEY)
+    const lastTitlePage = localStorage.getItem(LAST_TITLE_PAGE_KEY)
     const lastScriptSettings = localStorage.getItem(LAST_SCRIPT_SETTINGS_KEY)
     const lastOriginalXML = localStorage.getItem(LAST_XML_DOC_KEY)
     const lastFileName = localStorage.getItem(LAST_FILE_NAME_KEY)
     const lastCharSet = localStorage.getItem(LAST_CHARACTER_SET_KEY)
     const lastUndoStack = localStorage.getItem(LAST_UNDO_STACK_KEY)
+    const lastScrollPosition = localStorage.getItem(LAST_SCROLL_POSITION_KEY)
+    const lastCursorPosition = localStorage.getItem(LAST_CURSOR_POSITION_KEY)
+
     if (lastScreenplay) {
         const domParser = new DOMParser()
         const lastXMLDoc = domParser.parseFromString(lastOriginalXML, 'text/xml')
@@ -1237,9 +1390,9 @@ function tryGetLastScreenplay() {
             console.error("Failed to parse stored xml", parseError.textContent)
             lastXMLDoc === null;
         }
-        return [true, lastScreenplay, JSON.parse(lastScriptSettings), lastXMLDoc, lastFileName, new Set(JSON.parse(lastCharSet)), JSON.parse(lastUndoStack)]
+        return [true, lastScreenplay, JSON.parse(lastScriptSettings), lastXMLDoc, lastFileName, new Set(JSON.parse(lastCharSet)), JSON.parse(lastUndoStack), JSON.parse(lastScrollPosition), parseInt(lastCursorPosition), lastTitlePage]
     } else {
-        return [false, null, null, null, null]
+        return [false, null, null, null, null, null, null, null, null, null]
     }
 }
 
@@ -1257,9 +1410,21 @@ function addToCharacterSet(str) {
  * @param {HTMLElement} el 
  * @return {{x:number, y:number}}
  */
-function getElementCoords(el) {
+function getElementCoords(el, font) {
     const elStyles = window.getComputedStyle(el)
-    return { x: el.offsetLeft + parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p'))), y: el.offsetTop + parseInt(elStyles.paddingTop.substring(0, elStyles.paddingTop.lastIndexOf('p'))) }
+    let xVal = el.offsetLeft;
+    if (el.tagName === "TITLETEXT" && el.textContent) {
+        const width = font.widthOfTextAtSize(el.textContent, 16);
+        if (elStyles.textAlign === "center") {
+            xVal = (DEFAULT_PAGE_WIDTH * PIXELS_PER_INCH / 2 - width / 2)
+        }
+        else if (elStyles.textAlign === "right") {
+            xVal = (DEFAULT_PAGE_WIDTH - 1) * PIXELS_PER_INCH - width
+        }
+    } else {
+        xVal += parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p')))
+    }
+    return { x: xVal, y: el.offsetTop + parseInt(elStyles.paddingTop.substring(0, elStyles.paddingTop.lastIndexOf('p'))) }
 }
 
 /**
@@ -1297,14 +1462,64 @@ const POINTS_PER_INCH = 72;
  */
 function pxToPt(num) { return num * (POINTS_PER_INCH / PIXELS_PER_INCH) }
 
+function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount) {
+    for (let i = 0; i < allPages.length; i++) {
+        const pageData = allPages[i];
+        const pdfPage = pdfDoc.addPage([LetterPageWidth, LetterPageHeight]);
+        if (i > 0) {
+            pdfPage.drawText(`${i + 1}.`, {
+                x: LetterPageWidth - POINTS_PER_INCH, //1in from right
+                y: LetterPageHeight - 0.5 * POINTS_PER_INCH, //.5in from top
+                size: 12,
+                font: fonts.regular,
+                color: rgb(0, 0, 0),
+            });
+        }
+        for (const element of pageData.children) {
+            const AllCapsElements = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION"]
+            const elementStyles = window.getComputedStyle(element);
+            const font = resolveFont(fonts, elementStyles);
+            const color = rgb(0, 0, 0);
+            const elCoords = getElementCoords(element, font)
+            const fontSize = pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
+            const textLines = wrapText(AllCapsElements.includes(element.tagName) ? element.textContent.toUpperCase() : element.textContent, font, fontSize, pxToPt(getElementMaxWidth(element)))
+            elCoords.x = pxToPt(element.tagName === "TRANSITION" ? (DEFAULT_PAGE_WIDTH + DEFAULT_LEFT_MARGIN) * POINTS_PER_INCH - font.widthOfTextAtSize(element.textContent, fontSize) : elCoords.x)
+            elCoords.y = pxToPt(elCoords.y)
+
+            // Flip y: your model is top-left origin, PDF is bottom-left.
+            // This assumes element.y is the text's TOP position; drawText wants baseline.
+            // Rough baseline correction using font size — tune if text sits high/low vs your DOM render.
+            const pdfY = LetterPageHeight - elCoords.y - fontSize;
+
+            if (element.tagName === "SCENEHEADING") {
+                pdfPage.drawText(sceneCount.toString(), { x: .75 * POINTS_PER_INCH, y: pdfY, size: fontSize, font, color })
+                sceneCount++
+            }
+
+            for (const [i, line] of textLines.entries()) {
+                let newLine = line;
+                if (element.tagName === "PARENTHETICAL") {
+                    if (i === 0) newLine = `(${newLine}`
+                    if (i === textLines.length - 1) newLine += ')';
+                }
+                pdfPage.drawText(newLine, {
+                    x: elCoords.x,
+                    y: pdfY - (i * fontSize),
+                    size: fontSize,
+                    font,
+                    color,
+                });
+            }
+        }
+    }
+}
+
 /**
  * @param {Event} e 
  */
 async function downloadPDF(e) {
     e.preventDefault()
-    // const LETTER_PAGE_WIDTH = 612;
     const LetterPageWidth = DEFAULT_PAGE_WIDTH * POINTS_PER_INCH;
-    // const LETTER_PAGE_HEIGHT = 792;
     const LetterPageHeight = DEFAULT_PAGE_HEIGHT * POINTS_PER_INCH;
     const button = event.target;
     button.disabled = true; // simple guard against double-click while generating
@@ -1320,74 +1535,13 @@ async function downloadPDF(e) {
             italic: await pdfDoc.embedFont(StandardFonts.CourierOblique),
             boldItalic: await pdfDoc.embedFont(StandardFonts.CourierBoldOblique),
         };
-
-        // --- Get your paginated document model ---
-        // REPLACE with your actual accessor, e.g. documentModel.getPages()
-        /** @type {HTMLCollectionOf<HTMLElement>} */
-        const allPages = document.getElementsByClassName('page');
         let sceneCount = 1;
-        // for (const pageData of allPages) {
-        for (let i = 0; i < allPages.length; i++) {
-            const pageData = allPages[i];
-            const pdfPage = pdfDoc.addPage([LetterPageWidth, LetterPageHeight]);
-            if (i > 0) {
-                pdfPage.drawText(`${i + 1}.`, {
-                    x: LetterPageWidth - POINTS_PER_INCH, //1in from right
-                    y: LetterPageHeight - 0.5 * POINTS_PER_INCH, //.5in from top
-                    size: 12,
-                    font: fonts.regular,
-                    color: rgb(0, 0, 0),
-                });
-            }
-            for (const element of pageData.children) {
-                const AllCapsElements = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION"]
-                const elementStyles = window.getComputedStyle(element);
-                const font = resolveFont(fonts, elementStyles);
-                const color = rgb(0, 0, 0);
-                const elCoords = getElementCoords(element)
-                const fontSize = pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
-                const textLines = wrapText(AllCapsElements.includes(element.tagName) ? element.textContent.toUpperCase() : element.textContent, font, fontSize, pxToPt(getElementMaxWidth(element)))
-                elCoords.x = pxToPt(element.tagName === "TRANSITION" ? (DEFAULT_PAGE_WIDTH + DEFAULT_LEFT_MARGIN) * POINTS_PER_INCH - font.widthOfTextAtSize(element.textContent, fontSize) : elCoords.x)
-                elCoords.y = pxToPt(elCoords.y)
-
-                // Flip y: your model is top-left origin, PDF is bottom-left.
-                // This assumes element.y is the text's TOP position; drawText wants baseline.
-                // Rough baseline correction using font size — tune if text sits high/low vs your DOM render.
-                const pdfY = LetterPageHeight - elCoords.y - fontSize;
-
-                if (element.tagName === "SCENEHEADING") {
-                    pdfPage.drawText(sceneCount.toString(), { x: .75 * POINTS_PER_INCH, y: pdfY, size: fontSize, font, color })
-                    sceneCount++
-                }
-
-                for (const [i, line] of textLines.entries()) {
-                    let newLine = line;
-                    if (element.tagName === "PARENTHETICAL") {
-                        if (i === 0) newLine = `(${newLine}`
-                        if (i === textLines.length - 1) newLine += ')';
-                    }
-                    pdfPage.drawText(newLine, {
-                        x: elCoords.x,
-                        y: pdfY - (i * fontSize),
-                        size: fontSize,
-                        font,
-                        color,
-                    });
-                }
-                // if (element.type === 'text') {
-                // } else if (element.type === 'rule') {
-                //     // e.g. underline under scene heading, if you have any
-                //     pdfPage.drawLine({
-                //         start: { x: element.x1, y: PAGE_HEIGHT - element.y1 },
-                //         end: { x: element.x2, y: PAGE_HEIGHT - element.y2 },
-                //         thickness: element.thickness ?? 1,
-                //         color,
-                //     });
-                // }
-                // Add more element.type branches here (images, boxes) as needed.
-            }
+        if (!editingTitlePage) {
+            titlePageButton.click()
         }
-
+        addPagesToDoc(document.getElementsByClassName("page"), pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount)
+        titlePageButton.click()
+        addPagesToDoc(document.getElementsByClassName('page'), pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount)
         const pdfBytes = await pdfDoc.save();
         triggerDownload(pdfBytes, fileNameInput.value + '.pdf');
 
@@ -1398,7 +1552,32 @@ async function downloadPDF(e) {
     } finally {
         button.disabled = false;
     }
-    // alert("PDF Download not supported yet.")
+}
+
+/**
+ * @param {Event} e 
+ */
+function handleOnClick(e) {
+    const [el, _] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
+    switchLastFocusedElement(el)
+}
+
+/**
+ * 
+ * @param {Event} e 
+ */
+function toggleEditTitlePage(e) {
+    e.preventDefault();
+    if (editingTitlePage) {
+        titlePageOuterHTML = scriptWrapper.innerHTML
+        scriptWrapper.innerHTML = scriptInnerHTML;
+        titlePageButton.textContent = "Edit Title Page"
+    } else {
+        scriptInnerHTML = scriptWrapper.innerHTML
+        scriptWrapper.innerHTML = titlePageOuterHTML
+        titlePageButton.textContent = "Edit Script"
+    }
+    editingTitlePage = !editingTitlePage;
 }
 
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
@@ -1407,16 +1586,17 @@ scriptWrapper.addEventListener("keydown", handleKeyDown)
 scriptWrapper.addEventListener("keyup", handleKeyUp)
 scriptWrapper.addEventListener("input", handleInput)
 scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
-
+scriptWrapper.addEventListener("click", handleOnClick)
+titlePageButton.addEventListener("click", toggleEditTitlePage)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("download-pdf").addEventListener('click', downloadPDF)
 document.getElementById("new-blank").addEventListener("click", (e) => { newBlankScript() })
 window.addEventListener("visibilitychange", saveCurrentScreenplay)
 window.addEventListener("load", (e) => {
-    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastUndoStack] = tryGetLastScreenplay()
+    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastUndoStack, lastScrollPosition, lastCursorPosition, lastTitlePage] = tryGetLastScreenplay()
     if (ok) {
         scriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
-
+        titlePageOuterHTML = lastTitlePage
         if (lastSettings) scriptSettings = lastSettings
         else loadDefaultSettings();
 
@@ -1433,7 +1613,10 @@ window.addEventListener("load", (e) => {
         if (maybeLastFocused) switchLastFocusedElement(maybeLastFocused)
         else switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
 
-        setCursorPosition(lastFocusedElement, 0)
+        if (lastScrollPosition) restoreScrollPosition(lastScrollPosition)
+
+        if (lastCursorPosition) setCursorPosition(lastFocusedElement, lastCursorPosition)
+        else setCursorPosition(lastFocusedElement, 0)
         // TODO: restore scroll position as well
     } else {
         newBlankScript();
@@ -1443,18 +1626,11 @@ window.addEventListener("load", (e) => {
 // Fuck it, let's just ask Claude
 /**
  * @param {HTMLElement} element 
- * @param {ScrollPosition} state 
+ * @param {{top:number, left:number}} state 
  */
-function restoreScrollPosition(element, state) {
-    element.scrollTop = state.element.top;
-    element.scrollLeft = state.element.left;
-
-    state.ancestors.forEach(({ node, top, left }) => {
-        node.scrollTop = top;
-        node.scrollLeft = left;
-    });
-
-    window.scrollTo(state.window.x, state.window.y);
+function restoreScrollPosition(state) {
+    scriptWrapper.scrollTop = state.top;
+    scriptWrapper.scrollLeft = state.left
 }
 /**
  * @typedef {object} ScrollElement
@@ -1475,30 +1651,10 @@ function restoreScrollPosition(element, state) {
 
 /**
  * @param {HTMLElement} element 
- * @returns {ScrollPosition}
+ * @returns {{top:number, left:number}}
  */
-function saveScrollPosition(element) {
-    const state = {
-        element: {
-            top: element.scrollTop,
-            left: element.scrollLeft,
-        },
-        ancestors: [],
-    };
-
-    // Walk up and record scroll position of every scrollable ancestor
-    let node = element.parentElement;
-    while (node) {
-        if (node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth) {
-            state.ancestors.push({ node, top: node.scrollTop, left: node.scrollLeft });
-        }
-        node = node.parentElement;
-    }
-
-    // Also capture window scroll, in case the document itself scrolls
-    state.window = { x: window.scrollX, y: window.scrollY };
-
-    return state;
+function saveScrollPosition() {
+    return { top: scriptWrapper.scrollTop, left: scriptWrapper.scrollLeft }
 }
 
 /**
@@ -1743,7 +1899,6 @@ function paginateScreenplay(elements, currentElement = null, lastCursorPosition 
                     heights.splice(i + 1, 0, secondPartHeight);
                     heightMap.set(split.secondPart, secondPartHeight);             // keep the map in sync
                 } else if (orphanCharacter) {
-                    // console.log(el)
                     const orphan = currentEls.pop();
                     currentHeight -= heightMap.get(orphan);   // known height, no measurement
                     startNewPage(orphan, heightMap.get(orphan));

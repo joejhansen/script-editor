@@ -1,15 +1,12 @@
 :root {
-    /* line-height: 1.5; */
-    /* TODO: check if this is right*/
     font-weight: 400;
-    /* and this */
-    /* font-size: 20px; */
     color-scheme: light dark;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: 'Courier New', Courier, monospace;
+
 }
 
 html {
@@ -17,12 +14,20 @@ html {
     background-color: white;
 }
 
+body {
+    overflow: hidden;
+    margin: 0;
+
+}
+
 main {
+    overflow: hidden;
     color: black;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    height: 100svh;
 }
 
 #script-main:focus-visible {
@@ -31,6 +36,9 @@ main {
 
 #script-main {
     counter-reset: page scene;
+    overflow: scroll;
+    width: 100svw;
+    padding-top: 1rem;
 }
 
 
@@ -42,6 +50,7 @@ main {
 }
 
 .page {
+    margin: auto;
     counter-increment: page;
     position: relative;
     box-sizing: border-box;
@@ -54,41 +63,85 @@ main {
     height: 11in;
     padding: 1in 1in 1in 1.5in;
     margin-bottom: 1rem;
-    /* word-break: break-all; idk about this */
+    z-index: 100;
+    background: white;
 }
 
 
 .page>*:first-child {
     padding-top: 0;
 }
-#patch-notes{
-    width: 25ch;
-    position: absolute;
-    left: 1rem;
-    top: 1rem;
-}
+
 
 #options {
-
+    position: relative;
+    anchor-name: --options-header;
     background-color: white;
-    position: sticky;
     top: 0;
     padding: 1rem;
-    z-index: 100;
-    margin-bottom: 1rem;
+    /* margin-bottom: 1rem; */
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
 
-    >.buttons {
+    >#selectables {
         display: flex;
         flex-direction: row;
 
-        p {
-            margin: 0;
+        >#file-name-wrapper {
+            display: flex;
+            flex-direction: column;
+
+            >input {
+                margin-top: .5rem;
+            }
+        }
+
+        >#title-toggle-wrapper {
+            margin-left: 1rem;
+            padding: auto;
+            display: flex;
+            align-items: center;
+            >button{
+                width: 15ch;
+            }
+        }
+
+        >#downloads {
+            margin-left: 1rem;
+
+            button {
+                margin-top: .5rem;
+            }
+
+            p {
+                margin: 0
+            }
         }
     }
+
+    >#version-feedback>p {
+        margin: 0;
+    }
+
+
+    /* #file-name-wrapper{
+        display: flex;
+        flex-direction: column;
+    } */
+}
+
+#patch-notes {
+    position-anchor: --options-header;
+    position: absolute;
+    /* position-area: left; */
+    width: 25ch;
+    /* position: absolute; */
+    top: anchor(--options-header bottom);
+    left: 1rem
+        /* left: 1rem; */
+        /* bottom: 0; */
 }
 
 #uploads {
@@ -114,11 +167,11 @@ sceneheading::before {
 }
 
 /* sceneheading::after { */
-    /* TODO: figure out how to do this because I'm already using the ::after for autocomplete suggestions*/
-    /* content: counter(scene); */
-    /* position: absolute; */
-    /* right: 1in; */
-    /* color:hotpink */
+/* TODO: figure out how to do this because I'm already using the ::after for autocomplete suggestions*/
+/* content: counter(scene); */
+/* position: absolute; */
+/* right: 1in; */
+/* color:hotpink */
 /* } */
 
 shot {

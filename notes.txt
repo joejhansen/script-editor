@@ -77,3 +77,4 @@ TODO: add navigator
 
 7/21/26
 DONE-ISH: implement print to pdf with pdf-lib
+DONE: actually implement title page editing and print to pdf
