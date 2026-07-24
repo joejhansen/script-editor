@@ -1,4 +1,8 @@
 :root {
+    --color-primary: #fffffc;
+    --color-primary-invers: #000004;
+    --color-hover: #f4f4f1;
+    --color-text: black;
     font-weight: 400;
     color-scheme: light dark;
     font-synthesis: none;
@@ -11,13 +15,12 @@
 
 html {
     box-sizing: border-box;
-    background-color: white;
+    background-color: var(--color-primary);
 }
 
 body {
     overflow: hidden;
     margin: 0;
-
 }
 
 main {
@@ -72,76 +75,235 @@ main {
     padding-top: 0;
 }
 
+[popover] {
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    inset: auto;
+    border: 0;
+    background-color: inherit;
+}
 
-#options {
-    position: relative;
-    anchor-name: --options-header;
+/* button{
+    color: black;
     background-color: white;
-    top: 0;
-    padding: 1rem;
-    /* margin-bottom: 1rem; */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+}
+button:hover {
+    background-color: #eee;
+} */
 
-    >#selectables {
-        display: flex;
-        flex-direction: row;
+#header-menu {
+    color: black;
 
-        >#file-name-wrapper {
-            display: flex;
-            flex-direction: column;
+    anchor-name: --header-menu;
+    width: 100svw;
+    /* padding-left: min(5svw, 1rem); */
+    /* padding-right: min(5svw, 1rem); */
+    /* margin: auto; */
+    display: grid;
+    grid-template-rows: auto auto;
 
-            >input {
-                margin-top: .5rem;
-            }
-        }
-
-        >#title-toggle-wrapper {
-            margin-left: 1rem;
-            padding: auto;
-            display: flex;
-            align-items: center;
-            >button{
-                width: 15ch;
-            }
-        }
-
-        >#downloads {
-            margin-left: 1rem;
-
-            button {
-                margin-top: .5rem;
-            }
-
-            p {
-                margin: 0
-            }
-        }
+    [popover] button {
+        text-align: left;
     }
 
-    >#version-feedback>p {
+    button,
+    input {
+        font-family: 'Courier New', Courier, monospace;
+
+        border: none;
+        width: 100%;
         margin: 0;
+        font-size: 1.125rem;
+        background-color: inherit;
+        color: black;
     }
 
+    button:hover {
+        background: var(--color-hover);
+    }
 
-    /* #file-name-wrapper{
-        display: flex;
-        flex-direction: column;
-    } */
+    ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    >#top-menu {
+        display: grid;
+        grid-template-columns: repeat(3, auto);
+        justify-content: start;
+        gap: 1rem;
+        margin: .5rem;
+
+        #file-name {
+            font-size: 1.75rem;
+            width: 25ch;
+            border-bottom: solid 1px black;
+        }
+
+        #element-type-btn {
+            border: solid black 1px;
+            anchor-name: --element-types;
+            width: 15ch;
+            font-size: 1.125rem;
+
+            /* height: 2rem; */
+        }
+
+        #element-types {
+            background-color: var(--color-primary);
+
+            li {
+                border-left: solid 1px black;
+                border-right: solid 1px black;
+            }
+
+            li:first-child {
+                border-top: solid 1px black;
+            }
+
+            li:last-of-type {
+                border-bottom: solid 1px black;
+            }
+
+            position-anchor: --element-types;
+            width: anchor-size(--element-types width);
+            top: anchor(--element-types bottom);
+
+            left: anchor(--element-types left);
+
+        }
+
+        #title-page-toggle {
+            width: 16ch;
+            border: solid black 1px;
+
+        }
+
+        #page-count {
+            position: relative;
+        }
+
+        #page-count-text {
+            font-size: 1.25rem;
+            width: 7ch;
+            text-align: right;
+        }
+
+    }
+
+    >#bottom-menu {
+        border-bottom: solid black 1px;
+
+        #bottom-menu-buttons {
+            padding: initial;
+            margin: 0;
+            display: grid;
+            justify-content: start;
+            grid-template-columns: repeat(7, auto);
+
+            .option-menu {
+                position-anchor: --options-wrapper;
+                top: anchor(--options-wrapper top);
+                left: anchor(--options-wrapper left);
+                width: 100%;
+                height: 1in;
+                img{
+                    margin: auto;
+                }
+                >ul {
+                    display: grid;
+                }
+                p{
+                    margin: 0;
+                }
+                #github-logo{
+                    height:48px;
+                }
+                ul,
+                ul>li,
+                ul>li>* {
+                    text-align: center;
+                    color: black;
+                    height: 100%;
+                }
+
+
+                button {
+                    padding-left: 2ch;
+                    padding-right: 2ch;
+                }
+
+                #download-as-btn {
+                    display: grid;
+                    grid-template-rows: auto auto;
+                    align-items: center;
+
+                    ul {
+                        display: grid;
+                        grid-template-columns: auto auto;
+                    }
+
+                }
+
+
+            }
+
+            #file-popover>ul {
+                grid-template-columns: repeat(3, fit-content(16ch));
+            }
+
+            #edit-popover>ul {
+                grid-template-columns: repeat(9, fit-content(16ch));
+
+            }
+
+            #view-popover>ul {
+                grid-template-columns: repeat(2, fit-content(16ch));
+
+            }
+
+            #notes-popover>ul {
+                grid-template-columns: repeat(8, fit-content(16ch));
+
+            }
+
+            #format-popover>ul {
+                grid-template-columns: repeat(2, fit-content(25ch));
+
+            }
+
+            #production-popover>ul {
+                grid-template-columns: repeat(4, fit-content(16ch));
+
+            }
+
+            #help-popover>ul {
+                grid-template-columns: repeat(2, fit-content(16ch));
+
+            }
+        }
+    }
+
+    >#option-menu-wrapper {
+        anchor-name: --options-wrapper;
+        height: 1in;
+        width: 100%;
+        border-bottom: solid 1px black;
+    }
+}
+
+#script-upload {
+    display: none; /* hack to keep file input simple without showing the old ui */
 }
 
 #patch-notes {
-    position-anchor: --options-header;
+    position-anchor: --header-header;
     position: absolute;
-    /* position-area: left; */
     width: 25ch;
-    /* position: absolute; */
-    top: anchor(--options-header bottom);
+    top: anchor(--header-menu bottom);
     left: 1rem
-        /* left: 1rem; */
-        /* bottom: 0; */
 }
 
 #uploads {
@@ -199,6 +361,7 @@ dialogue {
 }
 
 parenthetical {
+    position: relative;
     text-indent: -0.1in;
     padding-left: 1.5in;
     padding-right: 2in;
@@ -220,15 +383,29 @@ transition,
 character,
 sceneheading,
 shot {
+    position: relative;
     text-transform: uppercase;
 }
 
 transition::after,
 character::after,
 sceneheading::after {
-    display: inline-block;
+    display: inline;
     content: attr(data-suggestion);
     color: gray
+}
+
+/* fixes autocomplete on the "next" line of an empty element*/
+character:has(>br)::after {
+    position: absolute;
+    top: 1rem;
+}
+
+/* same as above but with closing parenthesis*/
+parenthetical:has(>br)::after {
+    position: absolute;
+    top: 0;
+    left: calc(1.5in + 1ch);
 }
 
 span.bold {
@@ -242,8 +419,6 @@ span.italic {
 span.underline {
     text-decoration: underline;
 }
-
-
 
 continued {
     padding-left: 2in;

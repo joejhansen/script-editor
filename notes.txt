@@ -23,7 +23,7 @@ TODO: Copy/paste
 DONE: better undo/redo tree
 
 6/25/26
-TODO: title page stuff
+DONE: title page stuff
 DONE: Ctrl+A -> Delete should leave behind a scene heading
     just if the document is blank at any time really
 
@@ -60,7 +60,7 @@ TODO: add watermark
 TODO: add target script length bar
 TODO: add revision functionality
 TODO: page locking
-TODO: add navigator
+ABANDONED-ISH: add navigator (gotta figure out a different solution for this)
         scenes 
             order, title, location, summary, color, intro, length, page#, scene#, time, character arcs, character reference,
         script notes 
@@ -78,3 +78,15 @@ TODO: add navigator
 7/21/26
 DONE-ISH: implement print to pdf with pdf-lib
 DONE: actually implement title page editing and print to pdf
+
+7/23/26
+DONE-ISH: Add a better header menu
+    drop downs: File, Edit, View, Notation, Format, Production
+        FILE: import/export script,  
+        EDIT: text style/highlight/color picker, copy/cut/paste, undo/redo, watermark, mutex editing, replace character
+        VIEW: find character/location/sfx/prop, go to
+        NOTATION: comments, beats, structure points, bookmarks, sfx, props
+        FORMAT: change element settings (if you're insane)
+        PRODUCTION: character/scene/location lists and statistics, register with wga, budgeting
+    always in view: current element type, file name, current page and page count, title page toggle
+TODO: Add dual dialogue
