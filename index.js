@@ -114,38 +114,38 @@ const DEFAULT_BOTTOM_MARGIN = 1
 const DEFAULT_LEFT_MARGIN = 1.5
 const PIXELS_PER_INCH = 96
 const VALID_FDX_TYPES = [
-    "General",
     "Scene Heading",
     "Action",
     "Character",
-    "Parenthetical",
     "Dialogue",
+    "Parenthetical",
     "Transition",
     "Shot",
-    "Cast List",
+    "Sequence",
     "New Act",
     "End of Act",
-    "Sequence",
+    "Cast List",
     "Summary",
+    "General",
     "Outline 1",
     "Outline 2",
     "Outline 3",
     "Note",
 ];
 const HTML_TAG_NAMES = [
-    "general",
     "sceneheading",
     "action",
     "character",
-    "parenthetical",
     "dialogue",
+    "parenthetical",
     "transition",
     "shot",
-    "castlist",
+    "sequence",
     "newact",
     "endofact",
-    "sequence",
+    "castlist",
     "summary",
+    "general",
     "outline1",
     "outline2",
     "outline3",
@@ -239,7 +239,6 @@ let editingTitlePage = false;
 let scriptInnerHTML = "";
 
 
-
 let undoStack = new UndoStack();
 
 /**
@@ -263,6 +262,8 @@ let undoStack = new UndoStack();
  * @property {string} PaginateAs
  * @property {string} ReturnKey
  * @property {string} Shortcut
+ * @property {boolean} CanHide
+ * @property {number} Level
  */
 
 /**
@@ -405,29 +406,33 @@ function LoadElSetting(el) {
     let FontSpec = el.getElementsByTagName("FontSpec")[0]
     let ParagraphSpec = el.getElementsByTagName("ParagraphSpec")[0]
     let Behavior = el.getElementsByTagName("Behavior")[0]
+    let Outline = el.getElementsByTagName("Outline")[0]
     return {
-        Type: el.getAttribute("Type"),
+        Type: el.getAttribute("Type") || "Unknown",
 
-        AdornmentStyle: parseInt(FontSpec.getAttribute("AdornmentStyle")),
-        Background: FontSpec.getAttribute("Background"),
-        Color: FontSpec.getAttribute("Color"),
-        Font: FontSpec.getAttribute("Font"),
-        RevisionID: parseInt(FontSpec.getAttribute("RevisionID")),
-        Size: parseInt(FontSpec.getAttribute("Size")),
-        Style: FontSpec.getAttribute("Style"),
+        AdornmentStyle: parseInt(FontSpec.getAttribute("AdornmentStyle")) || 0,
+        Background: FontSpec.getAttribute("Background") || "#FFFFFFFFFFFF",
+        Color: FontSpec.getAttribute("Color") || "#000000000000",
+        Font: FontSpec.getAttribute("Font") || "Courier New",
+        RevisionID: parseInt(FontSpec.getAttribute("RevisionID")) || 0,
+        Size: parseInt(FontSpec.getAttribute("Size")) || 12,
+        Style: FontSpec.getAttribute("Style") || "",
 
-        Alignment: ParagraphSpec.getAttribute("Alignment"),
-        FirstIndent: parseFloat(ParagraphSpec.getAttribute("FirstIndent")),
-        Leading: ParagraphSpec.getAttribute("Leading"),
-        LeftIndent: parseFloat(ParagraphSpec.getAttribute("LeftIndent")),
-        RightIndent: parseFloat(ParagraphSpec.getAttribute("RightIndent")),
-        SpaceBefore: parseInt(ParagraphSpec.getAttribute("SpaceBefore")),
+        Alignment: ParagraphSpec.getAttribute("Alignment") || "Left",
+        FirstIndent: parseFloat(ParagraphSpec.getAttribute("FirstIndent")) || "0",
+        Leading: ParagraphSpec.getAttribute("Leading") || "Regular",
+        LeftIndent: parseFloat(ParagraphSpec.getAttribute("LeftIndent")) || 1.5,
+        RightIndent: parseFloat(ParagraphSpec.getAttribute("RightIndent")) || 7.5,
+        SpaceBefore: parseInt(ParagraphSpec.getAttribute("SpaceBefore")) || 0,
         Spacing: parseInt(ParagraphSpec.getAttribute("Spacing")),
         StartsNewPage: ParagraphSpec.getAttribute("StartsNewPage") === "Yes" ? true : false,
 
-        PaginateAs: Behavior.getAttribute("PaginateAs"),
-        ReturnKey: Behavior.getAttribute("ReturnKey"),
-        Shortcut: Behavior.getAttribute("Shortcut"),
+        PaginateAs: Behavior.getAttribute("PaginateAs") || "Unknown",
+        ReturnKey: Behavior.getAttribute("ReturnKey") || "Unknown",
+        Shortcut: Behavior.getAttribute("Shortcut") || NaN,
+
+        CanHide: Outline ? Outline.getAttribute("CanHide") === "Yes" ? true : false : false,
+        Level: Outline ? parseInt(Outline.getAttribute("Level")) || 1 : 1
     };
 }
 
@@ -440,7 +445,7 @@ function LoadElSettings(doc) {
     let res = {};
     let settings = doc.getElementsByTagName("ElementSettings")
     for (let setting of settings) {
-        res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = LoadElSetting(setting)
+        res[setting.getAttribute("Type").replace(" ", "").toLowerCase()] = LoadElSetting(setting)
     }
     return res;
 }
@@ -539,6 +544,7 @@ function assignTitleTextStyles(el, styles) {
     el.style.paddingRight = (1 + styles.rightindent - 8.5).toString() + "in";
     el.style.paddingTop = styles.spaceBefore.toString() + "in"
     el.style.lineHeight = styles.spacing.toString() + "rem"
+    el.style.right = el.style.textAlign === "center" ? ".25in" : "0"
 }
 
 /**
@@ -771,7 +777,99 @@ function handleRedo(event) {
 function handleTitleAlignment(e, el, page) {
     e.preventDefault()
     el.style.textAlign = ALIGNMENT_SHORTCUT_TO_RULE.at(ALIGNMENT_SHORTCUT_KEYS.indexOf(e.key.toLowerCase()))
+    if (el.style.textAlign === "center") el.style.right = ".25in"
+    else el.style.right = "0"
 }
+/**
+ * @param {Node[]} nodes 
+ * @param {Node[]}
+ */
+function mergeSiblingTextNodes(nodes) {
+    if (!nodes.length) return [];
+    let res = [nodes.shift()];
+    for (const node of nodes) {
+        if (node.parentElement === res[res.length - 1].parentElement) {
+            node.parentElement.removeChild(node)
+            res[res.length - 1].textContent += `${node.textContent}`
+        } else {
+            res.push(node)
+        }
+    }
+    return res;
+}
+
+/**
+ * @type {ClipboardEvent}
+ */
+function handleCopy(event) {
+    const selection = document.getSelection();
+    if (selection.isCollapsed) return;
+    event.preventDefault();
+    const clonedContents = selection.getRangeAt(0).cloneContents();
+    let elList = Array.from(clonedContents.children).map(v => v.outerHTML);
+    if (elList.length) {
+        navigator.clipboard.write([new ClipboardItem({ ["text/plain"]: JSON.stringify(elList) })]).catch(e => console.error(e));
+    } else {
+        navigator.clipboard.write([new ClipboardItem({ ["text/plain"]: clonedContents.textContent })])
+    }
+
+}
+
+/**
+ * @type {ClipboardEvent}
+ */
+function handlePaste(event) {
+    event.preventDefault();
+    const parser = new DOMParser()
+    /** @type {HTMLElement[]} */
+    let elementsToPaste = []
+    navigator.clipboard.read().then((e) => {
+        for (const clipped of e) {
+            clipped.getType("text/plain")
+                .then((v) => {
+                    v.text()
+                        .then((t) => {
+                            const selection = document.getSelection();
+                            undoStack.push()
+                            try {
+                                elementsToPaste = JSON.parse(t)
+                                    .map(v => parser.parseFromString(v, "text/html").getElementsByTagName("body")[0].children[0])
+                                elementsToPaste.reverse();
+                                for (let newEl of elementsToPaste) {
+                                    selection.anchorNode.parentElement.insertAdjacentElement("afterend", newEl)
+                                }
+                            } catch (_) {
+                                const nextPos = selection.anchorOffset + t.length
+                                selection.anchorNode.textContent = selection.anchorNode.textContent.substring(0, selection.anchorOffset) + t + selection.anchorNode.textContent.substring(selection.anchorOffset)
+                                selection.setPosition(selection.anchorNode, nextPos)
+                            }
+                        })
+                        .catch(e => console.error(e))
+                })
+                .catch(e => console.error(e)) // holy shit
+        }
+    })
+
+}
+
+function handleCut(event) {
+    const selection = document.getSelection();
+    if (selection.isCollapsed) return;
+    event.preventDefault();
+    undoStack.push()
+    const range = selection.getRangeAt(0);
+    const previousPos = range.startOffset
+    const startContainer = range.startContainer;
+    const clonedContents = range.extractContents();
+    let elList = Array.from(clonedContents.children).map(v => v.outerHTML);
+    if (elList.length) {
+        navigator.clipboard.write([new ClipboardItem({ ["text/plain"]: JSON.stringify(elList) })]).catch(e => console.error(e));
+    } else {
+        navigator.clipboard.write([new ClipboardItem({ ["text/plain"]: clonedContents.textContent })]).catch(e => console.error(e));
+    }
+    selection.setPosition(startContainer, previousPos)
+}
+
 
 /**
  * @param {KeyboardEvent} event 
@@ -989,24 +1087,41 @@ function getScriptElementAndCurrentPage(node) {
         return [scriptEl, scriptEl.parentElement]
     };
 }
+function handleElementPickerUI(el) {
+    if (editingTitlePage) return;
+    const changeElTopButton = document.getElementById("element-type-btn")
+    if (el.tagName === changeElTopButton.textContent.replace(" ", "").toUpperCase()) return
+    const elTypeUl = document.getElementById("element-types").children[0]
+    const newButtonToSlot = document.createElement("button")
+    const newLi = document.createElement("li")
+    newLi.appendChild(newButtonToSlot)
+    newButtonToSlot.textContent = changeElTopButton.textContent;
+    newButtonToSlot.dataset.order = changeElTopButton.dataset.order;
+    changeElTopButton.textContent = tagToFDXType(el.tagName)
+    let elToRemove = null;
+    for (let elTypeLi of elTypeUl.children) {
+        if (VALID_FDX_TYPES.indexOf(elTypeLi.children[0].textContent) > VALID_FDX_TYPES.indexOf(newButtonToSlot.textContent) && !newLi.parentElement) {
+            elTypeLi.parentElement.insertBefore(newLi, elTypeLi)
+        }
+        if (elTypeLi.children[0].textContent === tagToFDXType(el.tagName)) {
+            elToRemove = elTypeLi
+        }
+    }
+    if (!newLi.parentElement) {
+        elTypeUl.appendChild(newLi)
+    }
+    elTypeUl.removeChild(elToRemove)
+}
 /**
  * 
  * @param {HTMLElement} el 
  */
 function switchLastFocusedElement(el) {
-    console.log("here")
+    // console.log("here")
     if (lastFocusedElement) lastFocusedElement.classList.remove("lastFocused")
     lastFocusedElement = el;
     lastFocusedElement.classList.add("lastFocused")
-    const changeElTopButton = document.getElementById("element-type-btn")
-    const elTypes = document.getElementById("element-types").getElementsByTagName("button")
-    for (let elType of elTypes) {
-        if (elType.textContent === tagToFDXType(el.tagName)) {
-            const lastText = elType.textContent
-            elType.textContent = changeElTopButton.textContent
-            changeElTopButton.textContent = lastText
-        }
-    }
+    handleElementPickerUI(el);
 }
 /**
  * @param {KeyboardEvent} e 
@@ -1337,7 +1452,7 @@ async function loadBlankXMLDoc() {
         fetch("BlankFD13.fdx")
             .then(res => res.text())
             .then(text => parseXMLString(text))
-            .then(doc => { console.log("here");; blankScriptXML = doc; originalXML = blankScriptXML; titlePageOuterHTML = loadTitlePage(originalXML).map(e => e.outerHTML).join('') })
+            .then(doc => { blankScriptXML = doc; originalXML = blankScriptXML; titlePageOuterHTML = loadTitlePage(originalXML).map(e => e.outerHTML).join('') })
             .catch(e => console.warn(e))
     } else {
         originalXML = blankScriptXML
@@ -1667,6 +1782,10 @@ scriptWrapper.addEventListener("keyup", handleKeyUp)
 scriptWrapper.addEventListener("input", handleInput)
 scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
 scriptWrapper.addEventListener("click", handleOnClick)
+scriptWrapper.addEventListener("cut", handleCut);
+scriptWrapper.addEventListener("paste", handlePaste)
+scriptWrapper.addEventListener("copy", handleCopy)
+
 titlePageButton.addEventListener("click", toggleEditTitlePage)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("download-pdf").addEventListener('click', downloadPDF)
@@ -1680,6 +1799,9 @@ document.getElementById("element-types").addEventListener("click", (e) => {
     const [el, currentPage] = getScriptElementAndCurrentPage(lastFocusedElement)
     changeElementTo(el, e.target.textContent.replace(" ", "").toLowerCase(), currentPage)
 })
+document.getElementById("copy-button").addEventListener("click", handleCopy)
+document.getElementById("cut-button").addEventListener("click", handleCut)
+document.getElementById("paste-button").addEventListener("click", handlePaste)
 /**
  * @param {HTMLElement} element 
  * @param {{top:number, left:number}} state 
