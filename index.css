@@ -1,8 +1,10 @@
 :root {
     --color-primary: #fffffc;
-    --color-primary-invers: #000004;
+    --color-primary-inverse: #000004;
     --color-hover: #f4f4f1;
+    --color-page: white;
     --color-text: black;
+    --color-suggestion: gray;
     font-weight: 400;
     color-scheme: light dark;
     font-synthesis: none;
@@ -25,7 +27,7 @@ body {
 
 main {
     overflow: hidden;
-    color: black;
+    color: var(--color-text);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -61,13 +63,13 @@ main {
     display: flex;
     flex-direction: column;
     font-size: 12pt;
-    outline: solid 1px black;
+    outline: solid 1px var(--color-text);
     width: 8.5in;
     height: 11in;
     padding: 1in 1in 1in 1.5in;
     margin-bottom: 1rem;
     z-index: 100;
-    background: white;
+    background: var(--color-page);
 }
 
 
@@ -93,7 +95,7 @@ button:hover {
 } */
 
 #header-menu {
-    color: black;
+    color: var(--color-text);
 
     anchor-name: --header-menu;
     width: 100svw;
@@ -116,7 +118,7 @@ button:hover {
         margin: 0;
         font-size: 1.125rem;
         background-color: inherit;
-        color: black;
+        color: var(--color-text);
     }
 
     button:hover {
@@ -139,11 +141,11 @@ button:hover {
         #file-name {
             font-size: 1.75rem;
             width: 25ch;
-            border-bottom: solid 1px black;
+            border-bottom: solid 1px var(--color-text);
         }
 
         #element-type-btn {
-            border: solid black 1px;
+            border: solid 1px var(--color-text);
             anchor-name: --element-types;
             width: 15ch;
             font-size: 1.125rem;
@@ -155,16 +157,16 @@ button:hover {
             background-color: var(--color-primary);
 
             li {
-                border-left: solid 1px black;
-                border-right: solid 1px black;
+                border-left: solid 1px var(--color-text);
+                border-right: solid 1px var(--color-text);
             }
 
             li:first-child {
-                border-top: solid 1px black;
+                border-top: solid 1px var(--color-text);
             }
 
             li:last-of-type {
-                border-bottom: solid 1px black;
+                border-bottom: solid 1px var(--color-text);
             }
 
             position-anchor: --element-types;
@@ -177,7 +179,7 @@ button:hover {
 
         #title-page-toggle {
             width: 16ch;
-            border: solid black 1px;
+            border: solid var(--color-text) 1px;
 
         }
 
@@ -194,7 +196,7 @@ button:hover {
     }
 
     >#bottom-menu {
-        border-bottom: solid black 1px;
+        border-bottom: solid var(--color-text) 1px;
 
         #bottom-menu-buttons {
             padding: initial;
@@ -230,7 +232,7 @@ button:hover {
                 ul>li,
                 ul>li>* {
                     text-align: center;
-                    color: black;
+                    color: var(--color-text);
                     height: 100%;
                 }
 
@@ -295,7 +297,7 @@ button:hover {
         anchor-name: --options-wrapper;
         height: 1in;
         width: 100%;
-        border-bottom: solid 1px black;
+        border-bottom: solid 1px var(--color-text);
     }
 }
 
@@ -398,7 +400,7 @@ character::after,
 sceneheading::after {
     display: inline;
     content: attr(data-suggestion);
-    color: gray
+    color: var(--color-suggestion)
 }
 
 /* fixes autocomplete on the "next" line of an empty element*/
@@ -431,10 +433,10 @@ continued {
     padding-right: 3in;
 }
 
-.autocomplete {
-    color: gray;
-    user-select: none;
-}
+/* .autocomplete { */
+/* color: gray; */
+/* user-select: none; */
+/* } */
 
 pagenum {
     position: absolute;
@@ -445,4 +447,18 @@ pagenum {
 
 titletext {
     position: relative;
+}
+
+@media(prefers-color-scheme:dark) {
+    :root {
+        --color-primary: #1c1c1c;
+        --color-primary-inverse: #fffffc;
+        --color-hover: #404040;
+        --color-page: #1c1c1c;
+        --color-text: white;
+        --color-suggestion: gray;
+        li img{
+            filter: invert(100%)
+        }
+    }
 }

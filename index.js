@@ -104,7 +104,6 @@ class UndoStack {
     }
 }
 
-
 // Everything in inches
 const DEFAULT_PAGE_WIDTH = 8.5
 const DEFAULT_PAGE_HEIGHT = 11
@@ -113,6 +112,7 @@ const DEFAULT_RIGHT_MARGIN = 1
 const DEFAULT_BOTTOM_MARGIN = 1
 const DEFAULT_LEFT_MARGIN = 1.5
 const PIXELS_PER_INCH = 96
+const POINTS_PER_INCH = 72;
 const VALID_FDX_TYPES = [
     "Scene Heading",
     "Action",
@@ -132,6 +132,7 @@ const VALID_FDX_TYPES = [
     "Outline 3",
     "Note",
 ];
+const ALL_CAPS_ELEMENTS = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION"]
 const HTML_TAG_NAMES = [
     "sceneheading",
     "action",
@@ -238,7 +239,6 @@ let titlePageOuterHTML = "";
 let editingTitlePage = false;
 let scriptInnerHTML = "";
 
-
 let undoStack = new UndoStack();
 
 /**
@@ -280,7 +280,6 @@ let undoStack = new UndoStack();
  * @property {ElementSetting} newact
  * @property {ElementSetting} endofact
  */
-
 
 /**
  * @param {Node} node 
@@ -365,7 +364,7 @@ function restoreSelection(saved) {
 
     const anchorBlock = document.getElementById(saved.anchorBlockId);
     const focusBlock = document.getElementById(saved.focusBlockId);
-    if (!anchorBlock || !focusBlock) { console.log("wtf"); return; } // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
+    if (!anchorBlock || !focusBlock) return;  // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
 
     const anchorPos = findTextPosition(anchorBlock, saved.anchorOffset);
     const focusPos = findTextPosition(focusBlock, saved.focusOffset);
@@ -563,6 +562,7 @@ function getTitleParagraphStyles(para) {
         startsNewPage: para.getAttribute("StartsNewPage") === "Yes" ? true : false,
     }
 }
+
 /**
  * 
  * @param {Document} doc 
@@ -636,6 +636,7 @@ function ensureLineHasContent(el) {
         el.appendChild(document.createElement('br'))
     }
 }
+
 /**
  * @param {HTMLElement} root 
  */
@@ -653,12 +654,18 @@ function pruneEmptyInlineNodes(root) {
         }
     }
 }
-/**
- * @param {string} str 
- */
+
+/** @param {HTMLElement} el*/
+function handleUnfocusCharacter(el) {
+    setLastCharactersUsed(el.textContent);
+    addToCharacterSet(el.textContent);
+    el.textContent = el.textContent.at(0).toUpperCase() + el.textContent.substring(1)
+}
+
+/** @param {string} str */
 function setLastCharactersUsed(str) {
     if (str === lastCharacterUsed) return;
-    secondLastCharacterUsed = lastCharacterUsed
+    secondLastCharacterUsed = lastCharacterUsed;
     lastCharacterUsed = str;
 }
 
@@ -671,19 +678,16 @@ function setLastCharactersUsed(str) {
 function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
     undoStack.push()
-    if (el.dataset.suggestion) el.dataset.suggestion = "";
-    if (el.textContent && el.tagName === "CHARACTER") { setLastCharactersUsed(el.textContent); addToCharacterSet(el.textContent) }
+
 
     const selection = window.getSelection()
     const cursorRange = selection.getRangeAt(0)
 
     const tailRange = document.createRange()
     tailRange.setStart(cursorRange.startContainer, cursorRange.startOffset)
-    if (el.lastChild) {
-        tailRange.setEndAfter(el.lastChild)
-    } else {
-        tailRange.setEnd(el, el.childNodes.length)
-    }
+
+    if (el.lastChild) tailRange.setEndAfter(el.lastChild)
+    else tailRange.setEnd(el, el.childNodes.length)
 
     // Detach the live selection from `el` BEFORE mutating its DOM.
     // extractContents() below splits/removes nodes that el's current
@@ -710,6 +714,10 @@ function handleEnterKey(event, el, currentPage) {
     currentPage.insertBefore(newElement, el.nextSibling)
     if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
     setCursorPosition(newElement, 0)
+
+    if (el.dataset.suggestion) el.dataset.suggestion = "";
+    if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el)
+    else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.textContent = el.textContent.toUpperCase();
 }
 
 /**
@@ -760,6 +768,7 @@ function handleUndo(event) {
     event.preventDefault();
     undoStack.undo();
 }
+
 /**
  * @param {KeyboardEvent} event 
  */
@@ -780,6 +789,7 @@ function handleTitleAlignment(e, el, page) {
     if (el.style.textAlign === "center") el.style.right = ".25in"
     else el.style.right = "0"
 }
+
 /**
  * @param {Node[]} nodes 
  * @param {Node[]}
@@ -870,7 +880,6 @@ function handleCut(event) {
     selection.setPosition(startContainer, previousPos)
 }
 
-
 /**
  * @param {KeyboardEvent} event 
  * @param {Element} el
@@ -908,7 +917,8 @@ function handleTab(event, el, currentPage) {
     if (el.dataset.suggestion) {
         el.textContent += el.dataset.suggestion
         el.dataset.suggestion = ""
-        if (el.tagName === "CHARACTER") setLastCharactersUsed(el.textContent)
+        if (el.tagName === "CHARACTER") handleUnfocusCharacter(el)
+        else el.textContent = el.textContent.toUpperCase()
         setCursorPosition(el, el.textContent.length)
         return;
     }
@@ -938,12 +948,12 @@ function handleTab(event, el, currentPage) {
             else {
                 let newElement = newScriptElement(setting)
                 currentPage.insertBefore(newElement, el.nextSibling)
-                if (el.tagName === "CHARACTER") addToCharacterSet(el.textContent)
                 setCursorPosition(newElement, 0)
             }
         }
     }
 }
+
 /**
  * @param {InputEvent} event 
  * @param {Element} el 
@@ -972,7 +982,7 @@ function handleDeletion(event, el, currentPage) {
             undoStack.singleDeleteLast = false;
         }
     }
-    // undoStack.push()
+
     if (isFirstElement && cursorAtStart && nothingSelected && elementIsEmpty && DELETE_INPUT_TYPES.includes(event.inputType)) {
         event.preventDefault()
     } else if (allSelected) {
@@ -994,12 +1004,7 @@ function handleDeletion(event, el, currentPage) {
     }
 }
 
-function handleDeleteKey(event, child, currentPage) {
-    console.log("Here!")
-}
-
 /**
- * 
  * @param {HTMLElement} child 
  * @param {HTMLElement} parent 
  * @returns {number}
@@ -1012,9 +1017,8 @@ function getChildElementIndex(child, parent) {
 }
 
 /**
- * 
  * @param {HTMLElement} currentElement 
- * @returns {[HTMLElement[], HTMLElementEventMap]}
+ * @returns {[HTMLElement[], HTMLElementEventMap, number]}
  */
 function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1) {
     let allElements = [];
@@ -1023,7 +1027,7 @@ function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1
     for (let i = 0; i < pages.length; i++) {
         for (let j = 0; j < pages[i].childElementCount; j++) {
             if (dialogueContinued) { j = 1; dialogueContinued = false; }
-            else if (pages[i].children[j].tagName.toLowerCase() === "continued") { // TODO: fix this erasing second element's id for undo/redo purposes
+            else if (pages[i].children[j].tagName === "CONTINUED") { // TODO: fix this erasing second element's id for undo/redo purposes
                 if (currentElement && (currentElement === allElements[allElements.length - 1] || currentElement === pages[i + 1].children[1])) {
                     if (currentElement === pages[i + 1].children[1]) { lastCursorPosition += allElements[allElements.length - 1].textContent.length + 1 }
                     currentElement = allElements[allElements.length - 1]
@@ -1038,9 +1042,7 @@ function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1
     return [allElements, currentElement, lastCursorPosition];
 }
 
-
 /**
- * 
  * @param {HTMLElement} currentElement 
  * @param {HTMLElement} currentPage 
  */
@@ -1087,6 +1089,7 @@ function getScriptElementAndCurrentPage(node) {
         return [scriptEl, scriptEl.parentElement]
     };
 }
+
 function handleElementPickerUI(el) {
     if (editingTitlePage) return;
     const changeElTopButton = document.getElementById("element-type-btn")
@@ -1112,6 +1115,7 @@ function handleElementPickerUI(el) {
     }
     elTypeUl.removeChild(elToRemove)
 }
+
 /**
  * 
  * @param {HTMLElement} el 
@@ -1123,6 +1127,7 @@ function switchLastFocusedElement(el) {
     lastFocusedElement.classList.add("lastFocused")
     handleElementPickerUI(el);
 }
+
 /**
  * @param {KeyboardEvent} e 
  * @param {HTMLElement} el 
@@ -1131,7 +1136,7 @@ function switchLastFocusedElement(el) {
 function handleArrowKeysUp(e, el, page) {
     if (lastFocusedElement !== el && lastFocusedElement.dataset && lastFocusedElement.dataset.suggestion) {
         lastFocusedElement.dataset.suggestion = "";
-        if (lastFocusedElement.textContent && lastFocusedElement === "CHARACTER") setLastCharactersUsed(lastFocusedElement.textContent)
+        if (lastFocusedElement.textContent && lastFocusedElement === "CHARACTER") handleUnfocusCharacter(lastFocusedElement)
     }
     if (el !== lastFocusedElement) switchLastFocusedElement(el)
 }
@@ -1145,6 +1150,7 @@ function handleKeyDown(event) {
     if (event.key === "Tab") handleTab(event, child, currentPage)
     else if ((event.ctrlKey && event.key !== "Control") || (event.metaKey && event.key !== "MetaKey")) handleShortCut(event, child, currentPage)
 }
+
 /**
  * @param {KeyboardEvent} event 
  */
@@ -1154,6 +1160,7 @@ function handleKeyUp(event) {
 
     if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage)
 }
+
 /**
  * @param {FocusEvent} event 
  */
@@ -1249,6 +1256,7 @@ function handleAutocomplete(event, currentEl, currentPage) {
         currentEl.dataset.suggestion = res;
     }
 }
+
 /**
  * @param {InputEvent} event 
  */
@@ -1279,8 +1287,6 @@ function handleInput(event) {
 function tagToFDXType(tagStr) {
     return VALID_FDX_TYPES.at(HTML_TAG_NAMES.indexOf(tagStr.toLowerCase()))
 }
-
-
 
 /**
  * @param {Document} doc
@@ -1349,6 +1355,7 @@ function HTMLtoFDX(doc, el) {
     doc.getElementsByTagName("Content")[0].appendChild(paraEl)
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
 }
+
 /**
  * @param {Document} doc 
  * @param {string} char 
@@ -1361,6 +1368,7 @@ function addCharacterToXML(doc, char) {
     doc.getElementsByTagName("Characters")[0].appendChild(newCharEl)
     doc.getElementsByTagName("Characters")[0].appendChild(doc.createTextNode('\n'))
 }
+
 /**
  * 
  * @param {Document} doc 
@@ -1387,6 +1395,7 @@ function addTitlePageToXML(doc, textEls) {
     }
     doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('    '))
 }
+
 /**
  * @param {Event}
  */
@@ -1440,6 +1449,7 @@ function downloadFDX(event) {
     }
 
 }
+
 /**
  * @param {HTMLElement} el 
  */
@@ -1503,13 +1513,11 @@ function newBlankScript(preserveCurrentInfo = false) {
     editingTitlePage = false;
 }
 
-function replaceXMLContent() { }
 /**
  * @param {Document} doc 
  * @returns {string[]}
  */
 function getCharacterInfo(doc) {
-
     let res = new Set();
     const charElements = doc.getElementsByTagName("Character")
     for (const char of charElements) {
@@ -1580,22 +1588,23 @@ function getElementCoords(el, font) {
 }
 
 /**
- * 
  * @param {string} text 
  * @param {*} font 
  * @param {*} fontSize 
  * @param {*} maxWidth 
- * @returns 
+ * @returns {[string[],number]}
  */
-function wrapText(text, font, fontSize, maxWidth) {
+function wrapText(text, font, fontSize, maxWidth, firstLineX) {
     const words = text.split(' ');
     const lines = [];
     let currentLine = '';
-
+    let currentWidth = 0;
     for (const word of words) {
+        let lineWidth = maxWidth;
+        if (!lines.length) lineWidth = maxWidth - firstLineX
         const testLine = currentLine ? `${currentLine} ${word}` : word;
-        const width = font.widthOfTextAtSize(testLine, fontSize);
-        if (width > maxWidth && currentLine) {
+        currentWidth = font.widthOfTextAtSize(testLine, fontSize);
+        if (currentWidth > lineWidth && currentLine) {
             lines.push(currentLine);
             currentLine = word;
         } else {
@@ -1603,10 +1612,9 @@ function wrapText(text, font, fontSize, maxWidth) {
         }
     }
     if (currentLine) lines.push(currentLine);
-    return lines;
+    return [lines, currentWidth];
 }
 
-const POINTS_PER_INCH = 72;
 /**
  * 
  * @param {number} num 
@@ -1614,6 +1622,49 @@ const POINTS_PER_INCH = 72;
  */
 function pxToPt(num) { return num * (POINTS_PER_INCH / PIXELS_PER_INCH) }
 
+/**
+ * 
+ * @param {HTMLElement} element 
+ * @returns {Node[]}
+ */
+function getContainedTextNodes(element) {
+    let res = [];
+    let nodesToGo = [element];
+    while (nodesToGo.length) {
+        let newNode = nodesToGo.shift();
+        if (newNode.nodeType === Node.TEXT_NODE) res.push(newNode)
+        else nodesToGo = [...newNode.childNodes, ...nodesToGo]
+    }
+    return res;
+}
+const ITALICS_MASK = 0b100;
+const BOLD_MASK = 0b010;
+const UNDERLINE_MASK = 0b001;
+/**
+ * @param {Node} textNode 
+ * @returns {number}
+ */
+function getTextNodeStyles(textNode) {
+    let res = 0b000;
+    let currentParent = textNode.parentElement;
+    while (currentParent && !HTML_TAG_NAMES.includes(currentParent.tagName.toLowerCase())) {
+        if (currentParent.classList.contains("italic")) res = res | ITALICS_MASK
+        if (currentParent.classList.contains("bold")) res = res | BOLD_MASK
+        if (currentParent.classList.contains("underline")) res = res | UNDERLINE_MASK
+        currentParent = currentParent.parentElement
+    }
+    return res;
+}
+
+/**
+ * TODO: Figure out printing styled text.
+ * @param {HTMLElement[]} allPages 
+ * @param {*} pdfDoc 
+ * @param {number} LetterPageWidth 
+ * @param {number} LetterPageHeight 
+ * @param {{regular:any,bold:any,italic:any,boldItalic:any}} fonts 
+ * @param {number} sceneCount 
+ */
 function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount) {
     for (let i = 0; i < allPages.length; i++) {
         const pageData = allPages[i];
@@ -1628,39 +1679,68 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             });
         }
         for (const element of pageData.children) {
-            const AllCapsElements = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION"]
             const elementStyles = window.getComputedStyle(element);
-            const font = resolveFont(fonts, elementStyles);
-            const color = rgb(0, 0, 0);
-            const elCoords = getElementCoords(element, font)
-            const fontSize = pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
-            const textLines = wrapText(AllCapsElements.includes(element.tagName) ? element.textContent.toUpperCase() : element.textContent, font, fontSize, pxToPt(getElementMaxWidth(element)))
-            elCoords.x = pxToPt(element.tagName === "TRANSITION" ? (DEFAULT_PAGE_WIDTH + DEFAULT_LEFT_MARGIN) * POINTS_PER_INCH - font.widthOfTextAtSize(element.textContent, fontSize) : elCoords.x)
+            const initialFont = resolveFont(fonts, elementStyles);
+            const fontSize = 12 | pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
+            const elCoords = getElementCoords(element, initialFont)
+            elCoords.x = pxToPt(element.tagName === "TRANSITION"
+                ? (DEFAULT_PAGE_WIDTH + DEFAULT_LEFT_MARGIN) * POINTS_PER_INCH - initialFont.widthOfTextAtSize(element.textContent, fontSize)
+                : elCoords.x)
             elCoords.y = pxToPt(elCoords.y)
 
-            // Flip y: your model is top-left origin, PDF is bottom-left.
-            // This assumes element.y is the text's TOP position; drawText wants baseline.
-            // Rough baseline correction using font size — tune if text sits high/low vs your DOM render.
+            // TODO: finish this
+            let lineX = elCoords.x;
+            let lineY = LetterPageHeight - elCoords.y - fontSize;
+            let textNodes = getContainedTextNodes(element)
+            const color = rgb(0, 0, 0);
+            for (const textNode of textNodes) { // so fucking close
+                const styleMask = getTextNodeStyles(textNode)
+                let thisFont = initialFont
+                if ((styleMask & ITALICS_MASK) !== 0 && (styleMask & BOLD_MASK) !== 0) { thisFont = fonts.boldItalic; }
+                else if ((styleMask & ITALICS_MASK) !== 0) { thisFont = fonts.italic; }
+                else if ((styleMask & BOLD_MASK) !== 0) { thisFont = fonts.bold; }
+                let thisColor = rgb(0, 0, 0)
+                let [nodeLines, nodeLastLineWidth] = wrapText(
+                    ALL_CAPS_ELEMENTS.includes(element.tagName)
+                        ? textNode.data.toUpperCase()
+                        : textNode.data,
+                    thisFont,
+                    fontSize,
+                    pxToPt(getElementMaxWidth(element)),
+                    element.tagName === "TRANSITION" ? 0 : lineX - DEFAULT_LEFT_MARGIN * POINTS_PER_INCH - pxToPt(elementStyles.paddingLeft ? parseInt(elementStyles.paddingLeft.substring(0, elementStyles.paddingLeft.lastIndexOf("p")
+                    )) : 0)
+                )
+                // const pdfLineY = LetterPageHeight - lineY - fontSize
+                for (const [i, nodeLine] of nodeLines.entries()) {
+                    if (!nodeLine) continue;
+                    let newLine = nodeLine;
+                    if (element.tagName === "PARENTHETICAL") {
+                        if (i === 0) newLine = `(${newLine}`
+                        if (i === nodeLines.length - 1) newLine += ')';
+                    }
+                    if (i) {
+                        lineY -= fontSize
+                        lineX = elCoords.x
+                        if (element.tagName === "PARENTHETICAL") lineX += thisFont.widthOfTextAtSize(" ", fontSize)
+                    } else if (textNode.data.at(0) === " ") { // if it's not truthy, it must be the first line aka i = 0
+                        lineX += thisFont.widthOfTextAtSize(" ", fontSize)
+                    }
+                    pdfPage.drawText(newLine, {
+                        x: lineX,
+                        y: lineY,
+                        size: fontSize,
+                        font: thisFont,
+                        color,
+                    });
+                }
+                lineX += nodeLastLineWidth
+            }
             const pdfY = LetterPageHeight - elCoords.y - fontSize;
 
             if (element.tagName === "SCENEHEADING") {
-                pdfPage.drawText(sceneCount.toString(), { x: .75 * POINTS_PER_INCH, y: pdfY, size: fontSize, font, color })
+                pdfPage.drawText(sceneCount.toString(), { x: .75 * POINTS_PER_INCH, y: pdfY, size: fontSize, font: initialFont, color })
+                pdfPage.drawText(sceneCount.toString(), { x: LetterPageWidth - POINTS_PER_INCH, y: pdfY, size: fontSize, font: initialFont, color })
                 sceneCount++
-            }
-
-            for (const [i, line] of textLines.entries()) {
-                let newLine = line;
-                if (element.tagName === "PARENTHETICAL") {
-                    if (i === 0) newLine = `(${newLine}`
-                    if (i === textLines.length - 1) newLine += ')';
-                }
-                pdfPage.drawText(newLine, {
-                    x: elCoords.x,
-                    y: pdfY - (i * fontSize),
-                    size: fontSize,
-                    font,
-                    color,
-                });
             }
         }
     }
@@ -1731,6 +1811,7 @@ function toggleEditTitlePage(e) {
     }
     editingTitlePage = !editingTitlePage;
 }
+
 /**
  * 
  * @param {Event} e 
@@ -1762,7 +1843,6 @@ function handleOnLoad(e) {
 
         if (lastCursorPosition) setCursorPosition(lastFocusedElement, lastCursorPosition)
         else setCursorPosition(lastFocusedElement, 0)
-        // TODO: restore scroll position as well
     } else {
         newBlankScript();
     }
@@ -1810,6 +1890,7 @@ function restoreScrollPosition(state) {
     scriptWrapper.scrollTop = state.top;
     scriptWrapper.scrollLeft = state.left
 }
+
 /**
  * @typedef {object} ScrollElement
  * @property {number} top
@@ -2225,7 +2306,6 @@ function measureOne(el, scratch) {
     return h;
 }
 
-
 /**
  * Rich text formatting toggler for contenteditable elements.
  * Formats are represented as <span class="bold|italics|underline">...</span>,
@@ -2233,6 +2313,61 @@ function measureOne(el, scratch) {
  */
 
 const STYLE_CLASSES = { b: "bold", i: "italic", u: "underline" };
+
+/**
+ * @param {KeyboardEvent} event 
+ * @param {string} key 
+ */
+function handleTextStylingNew(event, key) {
+    event.preventDefault()
+    const selection = document.getSelection();
+    const range = selection.getRangeAt(0)
+    const contents = range.cloneContents();
+    splitRangeBoundaries(range)
+    let textNodes = getTextNodesInRange(range)
+    // console.log(selection)
+    // console.log(range)
+    // let firstEl = range.startContainer.parentElement;
+    // let lastEl = range.endContainer.parentElement;
+    // let originalOffset = getCursorPosition(firstEl)
+    // if (selection.direction === "forward") firstEl = range.startContainer.parentElement;
+    // else firstEl = range.endContainer.parentElement;
+    // const contents = range.extractContents()
+    // let newToInsert = []
+    // if (range.commonAncestorContainer.classList?.contains('page')) {
+    //     for (const child of contents.childNodes) {
+    //         let newStyleNode = document.createElement(key);
+    //         newStyleNode.innerHTML = child.innerHTML;
+    //         newToInsert.push(newStyleNode)
+    //     }
+    // } else {
+    //     let newStyleNode = document.createElement(key);
+    //     for (const childText of contents.childNodes) {
+    //         if (childText.nodeType === Node.TEXT_NODE) {
+    //             newStyleNode.innerHTML += childText.textContent;
+    //         } else {
+    //             newStyleNode.innerHTML += childText.outerHTML
+    //         }
+    //     }
+    //     newToInsert.push(newStyleNode)
+    // }
+    // console.log(firstEl.innerHTML.substring(0, originalOffset))
+
+    // // for (const [i, insertMe] of newToInsert.entries()) {
+    // //     if (i === 0) {
+    // //         firstEl.innerHTML += insertMe.outerHTML
+    // //     } else if (i === newToInsert.length - 1) {
+
+    // //     } else {
+
+    // //     }
+    // // }
+    // console.log(selection)
+    // console.log(range)
+
+}
+
+
 
 /**
  * @param {KeyboardEvent} event
@@ -2466,6 +2601,7 @@ function reselectNodes(selection, textNodes) {
     selection.removeAllRanges();
     selection.addRange(range);
 }
+
 /**
  * @param {{regular:any, bold:any, italic:any, boldItalic:any}} fonts 
  * @param {CSSStyleDeclaration} element 
