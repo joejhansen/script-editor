@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget - LibreScript</title>
+    <link rel="stylesheet" type="text/css" href="/index.css" />
+    <link rel="stylesheet" type="text/css" href="budget.css">
+</head>
+
+<body>
+    <nav id="sidebar">
+        <details>
+            <summary>Production</summary>
+            <button>Pre-Production</button>
+            <button>Principle</button>
+            <button>Post-Production</button>
+        </details>
+        <details>
+            <summary>Talent</summary>
+            <button>Features</button>
+            <button>Extras</button>
+        </details>
+        <details>
+            <summary>Crew</summary>
+            <button>Directing</button>
+            <button>Cinematography</button>
+            <button>Fabrication</button>
+            <button>Lighting</button>
+            <button>Sound</button>
+            <button>VFX</button>
+            <button>Editing</button>
+            <button>Costume</button>
+            <button>Makeup</button>
+        </details>
+        <details>
+            <summary>Equipment</summary>
+            <button>Owned</button>
+            <button>Rented</button>
+        </details>
+        <button>Locations</button>
+        <button>Scenes</button>
+        <!-- <ul>
+            <li><button>Overview</button></li>
+            <li><button id="production-button" popovertarget="production-popover">Production</button>
+                <ul id="production-popover" popover="manual">
+                    <li><button>Pre-Production</button></li>
+                    <li><button>Principle</button></li>
+                    <li><button>Post-Production</button></li>
+                </ul>
+            </li>
+            <li><button id="talent-button" popovertarget="talent-popover">Talent</button>
+                <ul id="talent-popover" popover="manual">
+                    <li><button>Features</button></li>
+                    <li><button>Extras</button></li>
+                </ul>
+            </li>
+            <li><button id="crew-button" popovertarget="crew-popover">Crew</button>
+                <ul id="crew-popover" popover="manual">
+                    <li><button>Directing</button></li>
+                    <li><button>Cinematography</button></li>
+                    <li><button>Fabrication</button></li>
+                    <li><button>Lighting</button></li>
+                    <li><button>Sound</button></li>
+                    <li><button>VFX</button></li>
+                    <li><button>Editing</button></li>
+                    <li><button>Costume</button></li>
+                    <li><button>Makeup</button></li>
+                </ul>
+            </li>
+            <li><button id="equipment-button" popovertarget="equipment-popover">Equipment</button>
+                <ul id="equipment-popover" popover="manual">
+                    <li><button>Owned</button></li>
+                    <li><button>Rented</button></li>
+                </ul>
+            </li>
+            <li><button>Locations</button></li>
+            <li><button>Scenes</button></li>
+        </ul> -->
+    </nav>
+    <table>
+        <tr>
+            <th>Item</th>
+            <th>Rate</th>
+            <th>Amount</th>
+            <th>Predicted</th>
+            <th>Actual</th>
+        </tr>
+        <tr>
+            <td contenteditable="true"><br></td>
+            <td contenteditable="true"><br></td>
+            <td contenteditable="true"><br></td>
+            <td contenteditable="true"><br></td>
+            <td contenteditable="true"><br></td>
+        </tr>
+    </table>
+    <script src="budget.js" type="module" defer></script>
+</body>
+
+</html>

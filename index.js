@@ -1,5 +1,9 @@
+import { CHANNEL_NAME as BUDGET_CHANNEL } from "./windows/budget/budget.js";
+
+
 const { PDFDocument, StandardFonts, rgb } = PDFLib
 const { fontkit } = window.fontkit
+
 
 /**
  * @typedef {{
@@ -132,7 +136,7 @@ const VALID_FDX_TYPES = [
     "Outline 3",
     "Note",
 ];
-const ALL_CAPS_ELEMENTS = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION"]
+const ALL_CAPS_ELEMENTS = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION", "NEWACT", "ENDOFACT"]
 const HTML_TAG_NAMES = [
     "sceneheading",
     "action",
@@ -230,6 +234,7 @@ let lastFocusedElement = null;
 let lastElementLineCount = 1;
 /** @type {HTMLElement | null} */
 let lastSnapshotElement = null
+const CurrentPageTracker = document.getElementById("current-page")
 
 /** @type {Set<string>} */
 let characterSet = new Set();
@@ -361,7 +366,6 @@ function findTextPosition(block, charOffset) {
  */
 function restoreSelection(saved) {
     if (!saved) return;
-
     const anchorBlock = document.getElementById(saved.anchorBlockId);
     const focusBlock = document.getElementById(saved.focusBlockId);
     if (!anchorBlock || !focusBlock) return;  // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
@@ -444,7 +448,7 @@ function LoadElSettings(doc) {
     let res = {};
     let settings = doc.getElementsByTagName("ElementSettings")
     for (let setting of settings) {
-        res[setting.getAttribute("Type").replace(" ", "").toLowerCase()] = LoadElSetting(setting)
+        res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = LoadElSetting(setting)
     }
     return res;
 }
@@ -464,7 +468,7 @@ function saveCurrentScreenplay(e) {
         localStorage.setItem(LAST_XML_DOC_KEY, xmlString)
         localStorage.setItem(LAST_FILE_NAME_KEY, fileNameInput.value)
         localStorage.setItem(LAST_CHARACTER_SET_KEY, JSON.stringify([...characterSet]))
-        localStorage.setItem(LAST_UNDO_STACK_KEY, JSON.stringify(undoStack))
+        // localStorage.setItem(LAST_UNDO_STACK_KEY, JSON.stringify(undoStack))
         localStorage.setItem(LAST_SCROLL_POSITION_KEY, JSON.stringify(saveScrollPosition()))
         localStorage.setItem(LAST_CURSOR_POSITION_KEY, getCursorPosition(lastFocusedElement))
     }
@@ -502,7 +506,7 @@ function EltoHTML(el) {
 function XMLtoHTML(doc) {
     /** @type {Element[]} */
     let res = []
-    contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
+    let contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
     for (let el of contentEls) {
         res.push(EltoHTML(el))
     }
@@ -714,10 +718,12 @@ function handleEnterKey(event, el, currentPage) {
     currentPage.insertBefore(newElement, el.nextSibling)
     if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
     setCursorPosition(newElement, 0)
+    CurrentPageTracker.value = getChildElementIndex(newElement.parentElement, scriptWrapper) + 1
 
     if (el.dataset.suggestion) el.dataset.suggestion = "";
     if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el)
     else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.textContent = el.textContent.toUpperCase();
+
 }
 
 /**
@@ -1026,13 +1032,15 @@ function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1
     let dialogueContinued = false;
     for (let i = 0; i < pages.length; i++) {
         for (let j = 0; j < pages[i].childElementCount; j++) {
-            if (dialogueContinued) { j = 1; dialogueContinued = false; }
-            else if (pages[i].children[j].tagName === "CONTINUED") { // TODO: fix this erasing second element's id for undo/redo purposes
-                if (currentElement && (currentElement === allElements[allElements.length - 1] || currentElement === pages[i + 1].children[1])) {
-                    if (currentElement === pages[i + 1].children[1]) { lastCursorPosition += allElements[allElements.length - 1].textContent.length + 1 }
+            if (dialogueContinued) { dialogueContinued = false; continue; }
+            else if (pages[i].children[j].dataset.more && pages[i + 1].children[0].tagName === "DIALOGUE") { // TODO: fix this erasing second element's id for undo/redo purposes
+                pages[i].children[j].dataset.more = "";
+                allElements.push(pages[i].children[j])
+                if (currentElement && (currentElement === allElements[allElements.length - 1] || currentElement === pages[i + 1].children[0])) {
+                    if (currentElement === pages[i + 1].children[0]) { lastCursorPosition += allElements[allElements.length - 1].textContent.length + 1 }
                     currentElement = allElements[allElements.length - 1]
                 }
-                allElements[allElements.length - 1].innerHTML += ` ${pages[i + 1].children[1].innerHTML}` // this doesn't work when there's a parenthetical in between
+                allElements[allElements.length - 1].innerHTML += ` ${pages[i + 1].children[0].innerHTML}` // this doesn't work when there's a parenthetical in between
                 dialogueContinued = true;
             } else {
                 allElements.push(pages[i].children[j])
@@ -1093,7 +1101,7 @@ function getScriptElementAndCurrentPage(node) {
 function handleElementPickerUI(el) {
     if (editingTitlePage) return;
     const changeElTopButton = document.getElementById("element-type-btn")
-    if (el.tagName === changeElTopButton.textContent.replace(" ", "").toUpperCase()) return
+    if (el.tagName === changeElTopButton.textContent.replace(/\s/g, "").toUpperCase()) return
     const elTypeUl = document.getElementById("element-types").children[0]
     const newButtonToSlot = document.createElement("button")
     const newLi = document.createElement("li")
@@ -1121,7 +1129,6 @@ function handleElementPickerUI(el) {
  * @param {HTMLElement} el 
  */
 function switchLastFocusedElement(el) {
-    // console.log("here")
     if (lastFocusedElement) lastFocusedElement.classList.remove("lastFocused")
     lastFocusedElement = el;
     lastFocusedElement.classList.add("lastFocused")
@@ -1157,7 +1164,7 @@ function handleKeyDown(event) {
 function handleKeyUp(event) {
     event.stopPropagation();
     const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
-
+    CurrentPageTracker.value = getChildElementIndex(currentPage, scriptWrapper) + 1
     if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage)
 }
 
@@ -1529,16 +1536,18 @@ function getCharacterInfo(doc) {
 /**
  * Grabs the last screenplay innerHTML, script settings, original xml document, 
  * file name, character set, and undo stack from local storage.
- * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, UndoStack|null, {top:number, left:number} | null, number|null, string|null]}
+ * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, {top:number, left:number} | null, number|null, string|null]}
  */
 function tryGetLastScreenplay() {
+    if (localStorage.getItem(LAST_UNDO_STACK_KEY)) {
+        localStorage.removeItem(LAST_UNDO_STACK_KEY)
+    }
     const lastScreenplay = localStorage.getItem(LAST_SCREENPLAY_KEY)
     const lastTitlePage = localStorage.getItem(LAST_TITLE_PAGE_KEY)
     const lastScriptSettings = localStorage.getItem(LAST_SCRIPT_SETTINGS_KEY)
     const lastOriginalXML = localStorage.getItem(LAST_XML_DOC_KEY)
     const lastFileName = localStorage.getItem(LAST_FILE_NAME_KEY)
     const lastCharSet = localStorage.getItem(LAST_CHARACTER_SET_KEY)
-    const lastUndoStack = localStorage.getItem(LAST_UNDO_STACK_KEY)
     const lastScrollPosition = localStorage.getItem(LAST_SCROLL_POSITION_KEY)
     const lastCursorPosition = localStorage.getItem(LAST_CURSOR_POSITION_KEY)
 
@@ -1550,9 +1559,9 @@ function tryGetLastScreenplay() {
             console.error("Failed to parse stored xml", parseError.textContent)
             lastXMLDoc === null;
         }
-        return [true, lastScreenplay, JSON.parse(lastScriptSettings), lastXMLDoc, lastFileName, new Set(JSON.parse(lastCharSet)), JSON.parse(lastUndoStack), JSON.parse(lastScrollPosition), parseInt(lastCursorPosition), lastTitlePage]
+        return [true, lastScreenplay, JSON.parse(lastScriptSettings), lastXMLDoc, lastFileName, new Set(JSON.parse(lastCharSet)), JSON.parse(lastScrollPosition), parseInt(lastCursorPosition), lastTitlePage]
     } else {
-        return [false, null, null, null, null, null, null, null, null, null]
+        return [false, null, null, null, null, null, null, null, null]
     }
 }
 
@@ -1573,7 +1582,7 @@ function addToCharacterSet(str) {
 function getElementCoords(el, font) {
     const elStyles = window.getComputedStyle(el)
     let xVal = el.offsetLeft;
-    if (el.tagName === "TITLETEXT" && el.textContent) {
+    if ((el.tagName === "TITLETEXT" || el.tagName === "ENDOFACT" || el.tagName === "NEWACT") && el.textContent) {
         const width = font.widthOfTextAtSize(el.textContent, 16);
         if (elStyles.textAlign === "center") {
             xVal = (DEFAULT_PAGE_WIDTH * PIXELS_PER_INCH / 2 - width / 2)
@@ -1647,10 +1656,11 @@ const UNDERLINE_MASK = 0b001;
 function getTextNodeStyles(textNode) {
     let res = 0b000;
     let currentParent = textNode.parentElement;
-    while (currentParent && !HTML_TAG_NAMES.includes(currentParent.tagName.toLowerCase())) {
+    while (currentParent && currentParent.tagName.toLowerCase() !== "article") {
+        let computedStyles = window.getComputedStyle(currentParent)
         if (currentParent.classList.contains("italic")) res = res | ITALICS_MASK
-        if (currentParent.classList.contains("bold")) res = res | BOLD_MASK
-        if (currentParent.classList.contains("underline")) res = res | UNDERLINE_MASK
+        if (currentParent.classList.contains("bold") || computedStyles.fontWeight === "700") res = res | BOLD_MASK
+        if (currentParent.classList.contains("underline") || computedStyles.textDecoration === "underline") res = res | UNDERLINE_MASK
         currentParent = currentParent.parentElement
     }
     return res;
@@ -1666,6 +1676,8 @@ function getTextNodeStyles(textNode) {
  * @param {number} sceneCount 
  */
 function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount) {
+    let lastUsedCharacter = "";
+    let dialogueContinued = false;
     for (let i = 0; i < allPages.length; i++) {
         const pageData = allPages[i];
         const pdfPage = pdfDoc.addPage([LetterPageWidth, LetterPageHeight]);
@@ -1679,6 +1691,7 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             });
         }
         for (const element of pageData.children) {
+            if (element.tagName === "CHARACTER") lastUsedCharacter = element.textContent
             const elementStyles = window.getComputedStyle(element);
             const initialFont = resolveFont(fonts, elementStyles);
             const fontSize = 12 | pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
@@ -1695,6 +1708,7 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             const color = rgb(0, 0, 0);
             for (const textNode of textNodes) { // so fucking close
                 const styleMask = getTextNodeStyles(textNode)
+                if (element.tagName === "NEWACT") console.log(styleMask)
                 let thisFont = initialFont
                 if ((styleMask & ITALICS_MASK) !== 0 && (styleMask & BOLD_MASK) !== 0) { thisFont = fonts.boldItalic; }
                 else if ((styleMask & ITALICS_MASK) !== 0) { thisFont = fonts.italic; }
@@ -1732,6 +1746,17 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
                         font: thisFont,
                         color,
                     });
+                    if ((styleMask & UNDERLINE_MASK) !== 0) {
+                        pdfPage.drawLine({
+                            start: { x: lineX, y: lineY - 2 },
+                            end: {
+                                x: lineX + thisFont.widthOfTextAtSize(newLine, fontSize),
+                                y: lineY - 2
+                            },
+                            thickness: 1,
+                            color: color,
+                        })
+                    }
                 }
                 lineX += nodeLastLineWidth
             }
@@ -1741,6 +1766,12 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
                 pdfPage.drawText(sceneCount.toString(), { x: .75 * POINTS_PER_INCH, y: pdfY, size: fontSize, font: initialFont, color })
                 pdfPage.drawText(sceneCount.toString(), { x: LetterPageWidth - POINTS_PER_INCH, y: pdfY, size: fontSize, font: initialFont, color })
                 sceneCount++
+            } else if (element.dataset.more) {
+                pdfPage.drawText("(MORE)", { x: 3.5 * POINTS_PER_INCH, y: lineY - fontSize, size: fontSize, font: initialFont, color })
+                dialogueContinued = true;
+            } else if (dialogueContinued) {
+                dialogueContinued = false;
+                pdfPage.drawText(`${lastUsedCharacter} (CONT'D)`, { x: 3.5 * POINTS_PER_INCH, y: LetterPageHeight - elCoords.y, size: fontSize, font: initialFont, color })
             }
         }
     }
@@ -1790,7 +1821,8 @@ async function downloadPDF(e) {
  * @param {Event} e 
  */
 function handleOnClick(e) {
-    const [el, _] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
+    const [el, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
+    CurrentPageTracker.value = getChildElementIndex(currentPage, scriptWrapper) + 1
     switchLastFocusedElement(el)
 }
 
@@ -1811,15 +1843,20 @@ function toggleEditTitlePage(e) {
     }
     editingTitlePage = !editingTitlePage;
 }
-
+function removeUndoIDs() {
+    for (let page of scriptWrapper.children) {
+        for (let el of page.children) {
+            el.removeAttribute("id")
+        }
+    }
+}
 /**
- * 
  * @param {Event} e 
  */
 function handleOnLoad(e) {
     document.getElementsByClassName("option-menu")[0].showPopover()
 
-    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastUndoStack, lastScrollPosition, lastCursorPosition, lastTitlePage] = tryGetLastScreenplay()
+    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage] = tryGetLastScreenplay()
     if (ok) {
         scriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
         titlePageOuterHTML = lastTitlePage
@@ -1833,7 +1870,7 @@ function handleOnLoad(e) {
 
         characterSet = lastCharacterSet ? lastCharacterSet : new Set();
 
-        undoStack = lastUndoStack ? new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_, lastUndoStack.singleDeleteLast, lastUndoStack.singleAddLast, lastUndoStack.uid) : new UndoStack()
+        // undoStack = lastUndoStack ? new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_, lastUndoStack.singleDeleteLast, lastUndoStack.singleAddLast, lastUndoStack.uid) : new UndoStack()
 
         const maybeLastFocused = document.getElementsByClassName("lastFocused")[0];
         if (maybeLastFocused) switchLastFocusedElement(maybeLastFocused)
@@ -1843,6 +1880,7 @@ function handleOnLoad(e) {
 
         if (lastCursorPosition) setCursorPosition(lastFocusedElement, lastCursorPosition)
         else setCursorPosition(lastFocusedElement, 0)
+        removeUndoIDs()
     } else {
         newBlankScript();
     }
@@ -1877,11 +1915,22 @@ document.getElementById("redo-button").addEventListener("click", (e) => undoStac
 document.getElementById("element-types").addEventListener("click", (e) => {
     if (editingTitlePage) return
     const [el, currentPage] = getScriptElementAndCurrentPage(lastFocusedElement)
-    changeElementTo(el, e.target.textContent.replace(" ", "").toLowerCase(), currentPage)
+    changeElementTo(el, e.target.textContent.replace(/\s/g, "").toLowerCase(), currentPage)
 })
 document.getElementById("copy-button").addEventListener("click", handleCopy)
 document.getElementById("cut-button").addEventListener("click", handleCut)
 document.getElementById("paste-button").addEventListener("click", handlePaste)
+CurrentPageTracker.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (isNaN(parseInt(e.target.value))) return
+    e.preventDefault();
+    if (e.target.value <= 0) e.target.value = 1;
+    else if (e.target.value > scriptWrapper.childElementCount) e.target.value = scriptWrapper.childElementCount;
+    setCursorPosition(scriptWrapper.children[e.target.value - 1].firstChild, 0)
+    restoreScrollPosition({ top: (e.target.value - 1) * (11 * 96 + 16) + 1, left: 0 })
+    // if (scriptWrapper)
+    // setCursorPosition()
+})
 /**
  * @param {HTMLElement} element 
  * @param {{top:number, left:number}} state 
@@ -2142,6 +2191,8 @@ function paginateScreenplay(elements, currentElement = null, lastCursorPosition 
         if (currentEls.length === 0) {
             currentEls.push(el);
             currentHeight = h;
+        } else if (el.tagName === "NEWACT") {
+            startNewPage(el, h)
         } else if (currentHeight + h > pageHeightPx) {
             if (tag === options.dialogueTagName) {
                 const remaining = pageHeightPx - currentHeight;
@@ -2149,13 +2200,15 @@ function paginateScreenplay(elements, currentElement = null, lastCursorPosition 
                 const [split, newCurrentElement, newLastCursorPosition] = attemptSplitDialogue(el, lastCharacterEl, remaining, options, scratch, currentElement, lastCursorPosition);
                 if (newCurrentElement) { currentElement = newCurrentElement; lastCursorPosition = newLastCursorPosition; }
                 if (split) {
-                    currentEls.push(split.firstPart, split.continuedCue);
+                    currentEls.push(split.firstPart);
                     flushPage();
-                    currentEls.push(split.nextPageCharacter);
-                    currentHeight = heightOf(split.nextPageCharacter, scratch);   // genuinely new element — needs measuring
+                    // currentEls.push(split.nextPageCharacter);
+                    // currentHeight = heightOf(split.nextPageCharacter, scratch);   // genuinely new element — needs measuring
                     elements.splice(i + 1, 0, split.secondPart);
+                    // elements.push(split.secondPart)
                     const secondPartHeight = heightOf(split.secondPart, scratch);  // also genuinely new
                     heights.splice(i + 1, 0, secondPartHeight);
+                    // heights.push(secondPartHeight)
                     heightMap.set(split.secondPart, secondPartHeight);             // keep the map in sync
                 } else if (orphanCharacter) {
                     const orphan = currentEls.pop();
@@ -2263,7 +2316,11 @@ function attemptSplitDialogue(dialogueEl, characterEl, remainingHeightPx, option
 
     if (best === -1) return [null, null, null]; // even minWordsBeforeSplit overflows the remaining space
     const firstPart = cloneWithText(dialogueEl, words.slice(0, best).join(' '));
+    firstPart.dataset.more = "(MORE)"
+    firstPart.dataset.contd = ""
     const secondPart = cloneWithText(dialogueEl, words.slice(best).join(' '));
+    secondPart.dataset.more = ""
+    secondPart.dataset.contd = `${characterEl.textContent.trim().toUpperCase()} (CONT'D)`
     if (currentElement && currentElement === dialogueEl) {
         newCurrentElement = true;
         if (lastCursorPosition >= firstPart.textContent.length) {
@@ -2292,6 +2349,12 @@ function createContinuedElement(options) {
 }
 
 /** Shallow clone — keeps tag name, classes, and attributes; swaps only the text. */
+/**
+ * 
+ * @param {HTMLElement} el 
+ * @param {string} text 
+ * @returns {HTMLElement}
+ */
 function cloneWithText(el, text) {
     const clone = el.cloneNode(false);
     clone.textContent = text;
@@ -2325,8 +2388,6 @@ function handleTextStylingNew(event, key) {
     const contents = range.cloneContents();
     splitRangeBoundaries(range)
     let textNodes = getTextNodesInRange(range)
-    // console.log(selection)
-    // console.log(range)
     // let firstEl = range.startContainer.parentElement;
     // let lastEl = range.endContainer.parentElement;
     // let originalOffset = getCursorPosition(firstEl)
@@ -2351,7 +2412,6 @@ function handleTextStylingNew(event, key) {
     //     }
     //     newToInsert.push(newStyleNode)
     // }
-    // console.log(firstEl.innerHTML.substring(0, originalOffset))
 
     // // for (const [i, insertMe] of newToInsert.entries()) {
     // //     if (i === 0) {
@@ -2362,8 +2422,6 @@ function handleTextStylingNew(event, key) {
 
     // //     }
     // // }
-    // console.log(selection)
-    // console.log(range)
 
 }
 

@@ -17,8 +17,10 @@
             </p>
             <p>New in this version</p>
             <ul>
-                <li>Dark/Light mode based on browser settings</li>
-                <li>Inline text styling now prints to PDF</li>
+                <li>Page count and navigation at bottom of page</li>
+                <li>New Act and End of Act elements</li>
+                <li>No more selectable (MORE) and (CONT'D)s. This might mess up your screenplay upon reformat.</li>
+                <li>Undo/Redo stack no longer saves to localStorage in order to free up space</li>
             </ul>
             <p>Known bugs</p>
             <ul>
@@ -45,7 +47,6 @@
                         <li><button>New Act</button></li>
                         <li><button>End of Act</button></li>
                         <li><button>Cast List</button></li>
-                        <li><button>Summary</button></li>
                         <li><button>General</button></li>
                     </ul>
                 </div>
@@ -242,10 +243,20 @@
                 <sceneheading><br></sceneheading>
             </div>
         </article>
+        <div id="stats-bar">
+            <div></div>
+            <div>
+                <div id="page-counter">
+                    <input type="text" name="current-page" id="current-page">
+                </div>
+            </div>
+            <div>
+            </div>
+        </div>
     </main>
     <script src="@pdf-lib-fontkit/fontkit.umd.min.js"></script>
     <script src="pdf-lib/pdf-lib.min.js"></script>
-    <script src="index.js" type="text/javascript" defer></script>
+    <script src="index.js" type="module" defer></script>
 </body>
 
 </html>
