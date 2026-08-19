@@ -86,13 +86,6 @@ main {
     background-color: inherit;
 }
 
-/* button{
-    color: black;
-    background-color: white;
-}
-button:hover {
-    background-color: #eee;
-} */
 button,
 input {
     font-family: 'Courier New', Courier, monospace;
@@ -114,19 +107,12 @@ button:hover {
 
     anchor-name: --header-menu;
     width: 100svw;
-    /* padding-left: min(5svw, 1rem); */
-    /* padding-right: min(5svw, 1rem); */
-    /* margin: auto; */
     display: grid;
     grid-template-rows: auto auto;
 
     [popover] button {
         text-align: left;
     }
-
-
-
-
 
     ul {
         list-style: none;
@@ -152,8 +138,6 @@ button:hover {
             anchor-name: --element-types;
             width: 15ch;
             font-size: 1.125rem;
-
-            /* height: 2rem; */
         }
 
         #element-types {
@@ -348,13 +332,10 @@ button:hover {
             min-width: 2ch;
             text-align: right;
             field-sizing: content;
-            /* width: min(3ch, max(2ch, fit-content)) */
-            /* width: fit-content */
             font-size: 12pt;
         }
 
         &::after {
-            /* font-size: 12pt; */
             content: "/" counter(page)
         }
     }
@@ -397,31 +378,35 @@ character {
     padding-left: 2in;
     padding-right: .25in;
     padding-top: 16px;
+
+    &:has(>br)::after {
+        position: absolute;
+        top: 1rem;
+    }
 }
 
 dialogue {
     position: relative;
     padding-left: 1in;
     padding-right: 1.5in;
-}
 
-dialogue:first-child {
-    padding-top: 1rem;
-}
+    &:first-child {
+        padding-top: 1rem;
+    }
 
-dialogue::after {
-    position: absolute;
-    bottom: -1rem;
-    left: 2in;
-    /* text-align: center; */
-    content: attr(data-more);
-}
+    &::after {
+        position: absolute;
+        bottom: -1rem;
+        left: 2in;
+        content: attr(data-more);
+    }
 
-dialogue::before {
-    position: absolute;
-    content: attr(data-contd);
-    top: -1rem;
-    left: 2in;
+    &::before {
+        position: absolute;
+        content: attr(data-contd);
+        top: -1rem;
+        left: 2in;
+    }
 }
 
 parenthetical {
@@ -429,14 +414,20 @@ parenthetical {
     text-indent: -0.1in;
     padding-left: 1.5in;
     padding-right: 2in;
-}
 
-parenthetical::before {
-    content: "(";
-}
+    &:has(>br)::after {
+        position: absolute;
+        top: 0;
+        left: calc(1.5in + 1ch);
+    }
 
-parenthetical::after {
-    content: ")"
+    &::before {
+        content: "(";
+    }
+
+    &::after {
+        content: ")"
+    }
 }
 
 newact,
@@ -486,19 +477,6 @@ sceneheading::after {
     color: var(--color-suggestion)
 }
 
-/* fixes autocomplete on the "next" line of an empty element*/
-character:has(>br)::after {
-    position: absolute;
-    top: 1rem;
-}
-
-/* same as above but with closing parenthesis*/
-parenthetical:has(>br)::after {
-    position: absolute;
-    top: 0;
-    left: calc(1.5in + 1ch);
-}
-
 span.bold {
     font-weight: bold;
 }
@@ -515,11 +493,6 @@ continued {
     padding-left: 2in;
     padding-right: 3in;
 }
-
-/* .autocomplete { */
-/* color: gray; */
-/* user-select: none; */
-/* } */
 
 pagenum {
     position: absolute;

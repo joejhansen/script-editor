@@ -1,0 +1,110 @@
+ul,
+li {
+    list-style-type: none;
+}
+
+nav {
+    border-right: solid 1px var(--color-text);
+}
+
+section {
+    width: 100%;
+
+    &:not(:last-child) {
+        border-bottom: solid 1px var(--color-text)
+    }
+}
+
+input[type=text] {
+    background-color: var(--color-hover);
+    width: 5ch;
+    text-align: right;
+}
+
+li {
+
+    position: relative;
+
+    label::after {
+        position: absolute;
+        left: 6.5ch;
+        bottom: 0rem
+    }
+
+}
+
+.margins,
+#indent-alignment {
+    label:not([for="textAlign"])::after {
+        content: "in";
+    }
+}
+
+#fonts {
+
+    label:not(:has(+select))::after {
+        content: "pt"
+    }
+}
+
+
+
+body {
+    display: grid;
+    grid-template-columns: fit-content(10ch) auto;
+    grid-template-rows: auto fit-content(2rem);
+    background-color: var(--color-primary);
+    height: 100svh;
+}
+
+main,
+aside,
+nav {
+    background-color: var(--color-primary);
+}
+
+aside {
+    grid-column-start: 1;
+    grid-column-end: 3;
+    border-top: solid 1px var(--color-text);
+
+    ul {
+        justify-content: flex-end;
+        margin-right: 1rem;
+    }
+
+    /* justify-self: end; */
+}
+
+main {
+    height: auto;
+    padding: 0 1rem 0 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow: scroll;
+    width: auto;
+}
+
+
+ul {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: flex-end;
+
+    li {
+        display: flex;
+        flex-direction: column;
+
+        &:not(:last-child) {
+            margin-right: 4ch;
+        }
+    }
+}
+
+#element-settings {
+    h3 {
+        border-top: solid 1px var(--color-text);
+    }
+}

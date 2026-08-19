@@ -1,229 +1,34 @@
 import { CHANNEL_NAME as BUDGET_CHANNEL } from "./windows/budget/budget.js";
-
+import { saveCurrentScreenplay, tryGetLastScreenplay } from "./LocalStorage.js";
+import {
+    LoadElSettings, ALL_CAPS_ELEMENTS, AUTOCOMPLETE_TAGS, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_EXTENSIONS,
+    DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS,
+    DEFAULT_TIMES_OF_DAY, DEFAULT_TOP_MARGIN_INCHES, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH,
+    POINTS_PER_INCH, SCENE_INTRO_REGEX, TIME_OF_DAY_REGEX, VALID_FDX_TYPES
+} from "./ScriptSettings.js";
+import { UndoStack } from "./UndoStack.js";
+import { XMLtoHTML, EltoHTML, parseXMLFromFile, parseXMLString } from "./ScriptConversion.js";
+import { saveScrollPosition, restoreScrollPosition, getCursorPosition } from "./UX.js";
+import { paginateScreenplay } from "./Pagination.js";
+import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js";
 
 const { PDFDocument, StandardFonts, rgb } = PDFLib
 const { fontkit } = window.fontkit
 
-
-/**
- * @typedef {{
- * anchorBlockId: string, 
- * anchorOffset: number, 
- * focusBlockId: string, 
- * focusOffset: number, 
- * scrollPosition: {
- *      top:number, 
- *      left:number }
- * }} SelectionCapture
- */
-
-/**
- * @typedef {{html: string, selection: SelectionCapture}} Snapshot
- */
-
-class UndoStack {
-    /**
-     * @param {number} limit 
-     * @param {Snapshot[]} undo 
-     * @param {Snapshot[]} redo 
-     * @param {boolean} singleDeleteLast
-     * @param {boolean} singleAddLast
-     * @param {number} lastUid
-     */
-    constructor(limit = 50, undo = [], redo = [], singleDeleteLast = false, singleAddLast = false, lastUid = 0) {
-        /** @type {Snapshot[]} */
-        this.undo_ = undo;
-        /** @type {Snapshot[]} */
-        this.redo_ = redo;
-        /** @type {number} */
-        this.limit = limit;
-        /** @type {bool} */
-        this.singleDeleteLast = singleDeleteLast
-        /** @type {bool} */
-        this.singleAddLast = singleAddLast
-        /** @type {number} */
-        this.uid = lastUid
-    }
-
-    /**
-     * @returns {Snapshot}
-     */
-    snapshot() {
-        return {
-            selection: this.captureSelection(), // save/restore caret position too
-            html: scriptWrapper.innerHTML,
-        };
-    }
-
-    push() {
-        if (editingTitlePage) return;
-        this.undo_.push(this.snapshot());
-        this.redo_.length = 0;
-        if (this.undo_.length > this.limit) this.undo_.shift();
-    }
-
-    undo() {
-        if (editingTitlePage) return;
-        if (!this.undo_.length) return;
-        this.redo_.push(this.snapshot());
-        const state = this.undo_.pop();
-        scriptWrapper.innerHTML = state.html;
-        restoreSelection(state.selection);
-    }
-
-    redo() {
-        if (editingTitlePage) return;
-        if (!this.redo_.length) return;
-        this.undo_.push(this.snapshot());
-        const state = this.redo_.pop();
-        scriptWrapper.innerHTML = state.html;
-        restoreSelection(state.selection);
-    }
-
-    /**
-     * @param {HTMLElement} el 
-     * @returns {string}
-     */
-    ensureId(el) { if (!el.id) el.id = `el-${this.uid++}`; return el.id; }
-
-    /**
-     * @returns {SelectionCapture | null}
-     */
-    captureSelection() {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return null;
-
-        const range = sel.getRangeAt(0);
-
-        const anchorBlock = closestBlock(sel.anchorNode);
-        const focusBlock = closestBlock(sel.focusNode);
-        if (!anchorBlock || !focusBlock) return null;
-        return {
-            anchorBlockId: this.ensureId(anchorBlock),
-            anchorOffset: textOffsetWithinBlock(anchorBlock, sel.anchorNode, sel.anchorOffset),
-            focusBlockId: this.ensureId(focusBlock),
-            focusOffset: textOffsetWithinBlock(focusBlock, sel.focusNode, sel.focusOffset),
-            scrollPosition: saveScrollPosition()
-        };
-    }
-}
-
-// Everything in inches
-const DEFAULT_PAGE_WIDTH = 8.5
-const DEFAULT_PAGE_HEIGHT = 11
-const DEFAULT_TOP_MARGIN = 1
-const DEFAULT_RIGHT_MARGIN = 1
-const DEFAULT_BOTTOM_MARGIN = 1
-const DEFAULT_LEFT_MARGIN = 1.5
-const PIXELS_PER_INCH = 96
-const POINTS_PER_INCH = 72;
-const VALID_FDX_TYPES = [
-    "Scene Heading",
-    "Action",
-    "Character",
-    "Dialogue",
-    "Parenthetical",
-    "Transition",
-    "Shot",
-    "Sequence",
-    "New Act",
-    "End of Act",
-    "Cast List",
-    "Summary",
-    "General",
-    "Outline 1",
-    "Outline 2",
-    "Outline 3",
-    "Note",
-];
-const ALL_CAPS_ELEMENTS = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION", "NEWACT", "ENDOFACT"]
-const HTML_TAG_NAMES = [
-    "sceneheading",
-    "action",
-    "character",
-    "dialogue",
-    "parenthetical",
-    "transition",
-    "shot",
-    "sequence",
-    "newact",
-    "endofact",
-    "castlist",
-    "summary",
-    "general",
-    "outline1",
-    "outline2",
-    "outline3",
-    "note",
-    "continued",
-    "titletext"
-]
-const EXTENSION_REGEX = /\(([\w\.\-'])*\)?$/i
-const DEFAULT_EXTENSIONS = new Set([
-    "(V.O.)",
-    "(O.S.)",
-    "(O.C.)",
-    "(CONT'D)",
-    "(SUBTITLE)",
-    "(TEXT)",
-    "(pre-lap)",
-]);
-const SCENE_INTRO_REGEX = /^(\w{1,3}|i\/{1,2})(?!.)/i
-const DEFAULT_SCENE_INTROS = new Set(["INT.", "EXT.", "I/E"]);
-const TIME_OF_DAY_REGEX = /-\s(?:\w* *)+$/i
-const DEFAULT_TIMES_OF_DAY = new Set([
-    "DAY",
-    "NIGHT",
-    "AFTERNOON",
-    "MORNING",
-    "EVENING",
-    "LATER",
-    "MOMENTS LATER",
-    "CONTINUOUS",
-    "THE NEXT DAY",
-    "MAGIC HOUR",
-    "DAWN",
-    "DUSK",
-    "SAME",
-    "SAME TIME",
-]);
-const DEFAULT_TRANSITIONS = new Set([
-    "CUT TO:",
-    "FADE IN:",
-    "FADE OUT.",
-    "FADE TO:",
-    "DISSOLVE TO:",
-    "BACK TO:",
-    "MATCH CUT TO:",
-    "JUMP CUT TO:",
-    "FADE TO BLACK.",
-    "SMASH CUT TO:",
-    "CUT TO BLACK.",
-    "TIME CUT:",
-]);
-const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
 const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward", "deleteByCut"]
 const ARROW_KEYS = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"]
-const LAST_SCREENPLAY_KEY = "lastScreenplay";
-const LAST_TITLE_PAGE_KEY = "lastTitlePage"
-const LAST_SCRIPT_SETTINGS_KEY = "lastScriptSettings"
-const LAST_XML_DOC_KEY = "lastXMLDoc"
-const LAST_FILE_NAME_KEY = "lastFileName"
-const LAST_CHARACTER_SET_KEY = "lastCharacterSet"
-const LAST_UNDO_STACK_KEY = "lastUndoStack"
-const LAST_SCROLL_POSITION_KEY = "lastScrollPosition"
-const LAST_CURSOR_POSITION_KEY = "lastCursorPosition"
+
 /** Left, Center, and Right respectively */
 const ALIGNMENT_SHORTCUT_KEYS = ["l", "e", "r"]
 const ALIGNMENT_SHORTCUT_TO_RULE = ["left", "center", "right"]
 
-let scriptWrapper = document.getElementById("script-main");
-let fileNameInput = document.getElementById("file-name")
-let titlePageButton = document.getElementById("title-page-toggle")
+const ScriptWrapper = document.getElementById("script-main");
+const FileNameInput = document.getElementById("file-name")
+const TitlePageButton = document.getElementById("title-page-toggle")
 
-/** @type {ElementSettings | null} */
+/** @type {import("./ScriptSettings.js").ElementSettings | null} */
 let defaultScriptSettings = null
-/** @type {ElementSettings | null} */
+/** @type {import("./ScriptSettings.js").ElementSettings | null} */
 let scriptSettings = null
 /** @type {Document | null} */
 let blankScriptXML = null
@@ -247,291 +52,12 @@ let scriptInnerHTML = "";
 let undoStack = new UndoStack();
 
 /**
- * @typedef {Object} ElementSetting
- * @property {string} Type
- * @property {number} AdornmentStyle
- * @property {string} Background
- * @property {string} Color
- * @property {string} Font
- * @property {number} RevisionID
- * @property {string} Size
- * @property {string} Style
- * @property {string} Alignment
- * @property {number} FirstIndent
- * @property {string} Leading
- * @property {number} LeftIndent
- * @property {number} RightIndent
- * @property {number} SpaceBefore
- * @property {number} Spacing
- * @property {boolean} StartsNewPage
- * @property {string} PaginateAs
- * @property {string} ReturnKey
- * @property {string} Shortcut
- * @property {boolean} CanHide
- * @property {number} Level
- */
-
-/**
- * @typedef {Object} ElementSettings
- * @property {ElementSetting} general
- * @property {ElementSetting} sceneheading
- * @property {ElementSetting} action
- * @property {ElementSetting} character
- * @property {ElementSetting} parenthetical
- * @property {ElementSetting} dialogue
- * @property {ElementSetting} transition
- * @property {ElementSetting} shot
- * @property {ElementSetting} castlist
- * @property {ElementSetting} newact
- * @property {ElementSetting} endofact
- */
-
-/**
- * @param {Node} node 
- * @param {HTMLElement?} root 
- * @returns {HTMLElement | null}
- */
-function closestBlock(node, root = scriptWrapper) {
-    // Text node -> start from its parent element
-    let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-
-    while (el && el !== root) {
-        if (HTML_TAG_NAMES.includes(el.tagName.toLowerCase())) return el;
-        el = el.parentElement;
-    }
-    return null; // node wasn't inside a recognized block (shouldn't normally happen)
-}
-
-/**
- * Convert a (node, offset) pair into a character offset relative to block.textContent 
- * @param {HTMLElement} block 
- * @param {Node} node 
- * @param {number} offset 
- * @returns {number}
- */
-function textOffsetWithinBlock(block, node, offset) {
-    if (node.nodeType !== Node.TEXT_NODE) {
-        // Selection anchor landed on an element (e.g. empty block, or offset
-        // counts child nodes) — sum text length of preceding children instead.
-        let total = 0;
-        for (let i = 0; i < offset; i++) {
-            total += node.childNodes[i]?.textContent.length ?? 0;
-        }
-        return total;
-    }
-
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-    let total = 0;
-    let current = walker.nextNode();
-    while (current && current !== node) {
-        total += current.textContent.length;
-        current = walker.nextNode();
-    }
-    return total + offset;
-}
-
-/**
- * Walk a block's text nodes to find the (node, offset) pair
- * corresponding to a character offset into its overall textContent.
- * @param {HTMLElement} block 
- * @param {number} charOffset 
- * @returns {{node: Node, offset:number}}
- */
-function findTextPosition(block, charOffset) {
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-    let remaining = charOffset;
-    let node = walker.nextNode();
-    let last = null;
-
-    while (node) {
-        const len = node.textContent.length;
-        if (remaining <= len) {
-            return { node: node, offset: remaining };
-        }
-        remaining -= len;
-        last = node;
-        node = walker.nextNode();
-    }
-
-    // charOffset was beyond the block's text (e.g. block is now empty,
-    // or offset was clamped by an earlier merge) — fall back to the end.
-    if (last) return { node: last, offset: last.textContent.length };
-
-    // Block has no text nodes at all (fully emptied) — insert as a child directly.
-    return { node: block, offset: 0 };
-}
-
-/**
- * @param {SelectionCapture} saved 
- */
-function restoreSelection(saved) {
-    if (!saved) return;
-    const anchorBlock = document.getElementById(saved.anchorBlockId);
-    const focusBlock = document.getElementById(saved.focusBlockId);
-    if (!anchorBlock || !focusBlock) return;  // blocks gone (shouldn't happen right after undo/redo, but stay defensive)
-
-    const anchorPos = findTextPosition(anchorBlock, saved.anchorOffset);
-    const focusPos = findTextPosition(focusBlock, saved.focusOffset);
-
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-
-    const range = document.createRange();
-    range.setStart(anchorPos.node === anchorBlock ? anchorBlock : anchorPos.node,
-        anchorPos.node === anchorBlock ? 0 : anchorPos.offset);
-    range.collapse(true);
-    sel.addRange(range);
-
-    // Extend to focus if it's a real selection, not just a caret
-    if (saved.anchorBlockId !== saved.focusBlockId || saved.anchorOffset !== saved.focusOffset) {
-        sel.extend(
-            focusPos.node === focusBlock ? focusBlock : focusPos.node,
-            focusPos.node === focusBlock ? 0 : focusPos.offset
-        );
-    }
-    if (saved.scrollPosition) restoreScrollPosition(saved.scrollPosition)
-}
-
-/**
  * @param {HTMLElement} el 
  * @returns {number}
  */
 function getElementMaxWidth(el) {
     const elStyles = window.getComputedStyle(el)
-    return (DEFAULT_PAGE_WIDTH - DEFAULT_RIGHT_MARGIN - DEFAULT_LEFT_MARGIN) * PIXELS_PER_INCH - parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p'))) - parseInt(elStyles.paddingRight.substring(0, elStyles.paddingRight.lastIndexOf('p')))
-}
-
-/**
- * @param {Element} el
- * @returns {ElementSetting} 
- */
-function LoadElSetting(el) {
-    let FontSpec = el.getElementsByTagName("FontSpec")[0]
-    let ParagraphSpec = el.getElementsByTagName("ParagraphSpec")[0]
-    let Behavior = el.getElementsByTagName("Behavior")[0]
-    let Outline = el.getElementsByTagName("Outline")[0]
-    return {
-        Type: el.getAttribute("Type") || "Unknown",
-
-        AdornmentStyle: parseInt(FontSpec.getAttribute("AdornmentStyle")) || 0,
-        Background: FontSpec.getAttribute("Background") || "#FFFFFFFFFFFF",
-        Color: FontSpec.getAttribute("Color") || "#000000000000",
-        Font: FontSpec.getAttribute("Font") || "Courier New",
-        RevisionID: parseInt(FontSpec.getAttribute("RevisionID")) || 0,
-        Size: parseInt(FontSpec.getAttribute("Size")) || 12,
-        Style: FontSpec.getAttribute("Style") || "",
-
-        Alignment: ParagraphSpec.getAttribute("Alignment") || "Left",
-        FirstIndent: parseFloat(ParagraphSpec.getAttribute("FirstIndent")) || "0",
-        Leading: ParagraphSpec.getAttribute("Leading") || "Regular",
-        LeftIndent: parseFloat(ParagraphSpec.getAttribute("LeftIndent")) || 1.5,
-        RightIndent: parseFloat(ParagraphSpec.getAttribute("RightIndent")) || 7.5,
-        SpaceBefore: parseInt(ParagraphSpec.getAttribute("SpaceBefore")) || 0,
-        Spacing: parseInt(ParagraphSpec.getAttribute("Spacing")),
-        StartsNewPage: ParagraphSpec.getAttribute("StartsNewPage") === "Yes" ? true : false,
-
-        PaginateAs: Behavior.getAttribute("PaginateAs") || "Unknown",
-        ReturnKey: Behavior.getAttribute("ReturnKey") || "Unknown",
-        Shortcut: Behavior.getAttribute("Shortcut") || NaN,
-
-        CanHide: Outline ? Outline.getAttribute("CanHide") === "Yes" ? true : false : false,
-        Level: Outline ? parseInt(Outline.getAttribute("Level")) || 1 : 1
-    };
-}
-
-/**
- * @param {Document} doc 
- * @returns {ElementSettings}
- */
-function LoadElSettings(doc) {
-    /** @type {ElementSettings} */
-    let res = {};
-    let settings = doc.getElementsByTagName("ElementSettings")
-    for (let setting of settings) {
-        res[setting.getAttribute("Type").replace(/\s/g, "").toLowerCase()] = LoadElSetting(setting)
-    }
-    return res;
-}
-
-/**
- * Saves screenplay innerHTML, settings object, original xml doc, file name, character set, and undo stack to local storage.
- * @param {Event} e 
- */
-function saveCurrentScreenplay(e) {
-    if (document.visibilityState === "hidden") {
-        const xmlString = new XMLSerializer().serializeToString(originalXML);
-        if (editingTitlePage) titlePageOuterHTML = scriptWrapper.innerHTML
-        else scriptInnerHTML = scriptWrapper.innerHTML
-        localStorage.setItem(LAST_SCREENPLAY_KEY, scriptInnerHTML)
-        localStorage.setItem(LAST_TITLE_PAGE_KEY, titlePageOuterHTML)
-        localStorage.setItem(LAST_SCRIPT_SETTINGS_KEY, JSON.stringify(scriptSettings))
-        localStorage.setItem(LAST_XML_DOC_KEY, xmlString)
-        localStorage.setItem(LAST_FILE_NAME_KEY, fileNameInput.value)
-        localStorage.setItem(LAST_CHARACTER_SET_KEY, JSON.stringify([...characterSet]))
-        // localStorage.setItem(LAST_UNDO_STACK_KEY, JSON.stringify(undoStack))
-        localStorage.setItem(LAST_SCROLL_POSITION_KEY, JSON.stringify(saveScrollPosition()))
-        localStorage.setItem(LAST_CURSOR_POSITION_KEY, getCursorPosition(lastFocusedElement))
-    }
-}
-
-/**
- * @param {Element} el 
- * @returns {HTMLElement}
- */
-function EltoHTML(el) {
-    let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
-    let elInnerHTML = "";
-    for (let tag of el.children) if (tag.tagName === "Text") {
-        if (tag.hasAttribute("Style")) {
-            const styles = tag.getAttribute("Style").toLowerCase().replace('+', ' ').replace("allcaps", '')
-            if (styles) {
-                elInnerHTML += `<span class="${styles}">${tag.textContent}</span>`
-            } else {
-                elInnerHTML += tag.textContent;
-            }
-        } else {
-            elInnerHTML += tag.textContent;
-        }
-    }
-    if (elType === "parenthetical") elInnerHTML = elInnerHTML.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
-    let newEl = document.createElement(elType)
-    newEl.innerHTML = elInnerHTML;
-    return newEl
-}
-
-/**
- * @param {Document} doc
- * @return {HTMLElement[]}
- */
-function XMLtoHTML(doc) {
-    /** @type {Element[]} */
-    let res = []
-    let contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
-    for (let el of contentEls) {
-        res.push(EltoHTML(el))
-    }
-    return res;
-}
-
-/**
- * @param {File} file 
- * @returns {Promise<Document>}
- */
-async function parseXMLFromFile(file) {
-    const xmlString = await file.text();
-    return parseXMLString(xmlString);
-}
-
-/**
- * @param {string} xmlString 
- * @returns {Document}
- */
-function parseXMLString(xmlString) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlString, 'text/xml');
-    const errorNode = doc.querySelector('parsererror');
-    if (errorNode) throw new Error(`XML parsing error: ${errorNode.textContent}`);
-    return doc;
+    return (DEFAULT_PAGE_WIDTH_INCHES - DEFAULT_RIGHT_MARGIN_INCHES - DEFAULT_LEFT_MARGIN_INCHES) * PIXELS_PER_INCH - parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p'))) - parseInt(elStyles.paddingRight.substring(0, elStyles.paddingRight.lastIndexOf('p')))
 }
 
 /** @typedef {{textAlign:string, firstIndent:number, leading:string, leftIndent:number, rightindent:number, spaceBefore:number, spacing:number, startsNewPage:boolean}} TitleTextStyles */
@@ -606,8 +132,8 @@ function handleFileInput(event) {
     const file = event.target.files?.[0]
     if (!file) console.warn("DEBUG:\t handleFileInput -> Something went wrong loading file")
     parseXMLFromFile(file).then(doc => {
-        while (scriptWrapper.firstChild) {
-            scriptWrapper.removeChild(scriptWrapper.firstChild)
+        while (ScriptWrapper.firstChild) {
+            ScriptWrapper.removeChild(ScriptWrapper.firstChild)
         }
         originalXML = doc;
         scriptSettings = LoadElSettings(doc)
@@ -615,12 +141,12 @@ function handleFileInput(event) {
         titlePageOuterHTML = loadTitlePage(doc).map(e => e.outerHTML).join('')
         const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc));
         for (const page of screenplayPages) {
-            scriptWrapper.appendChild(page);
+            ScriptWrapper.appendChild(page);
         }
-        fileNameInput.value = file.name.substring(0, file.name.length - 4)
-        switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
+        FileNameInput.value = file.name.substring(0, file.name.length - 4)
+        switchLastFocusedElement(ScriptWrapper.firstChild.firstChild)
         setCursorPosition(lastFocusedElement, 0)
-        scriptInnerHTML = scriptWrapper.innerHTML
+        scriptInnerHTML = ScriptWrapper.innerHTML
         undoStack = new UndoStack()
         editingTitlePage = false;
     }).catch(e => console.warn(e))
@@ -681,7 +207,7 @@ function setLastCharactersUsed(str) {
  */
 function handleEnterKey(event, el, currentPage) {
     event.preventDefault()
-    undoStack.push()
+    undoStack.push(editingTitlePage, ScriptWrapper)
 
 
     const selection = window.getSelection()
@@ -716,9 +242,9 @@ function handleEnterKey(event, el, currentPage) {
     ensureLineHasContent(newElement)
 
     currentPage.insertBefore(newElement, el.nextSibling)
-    if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT) reformatScreenplay(el, currentPage)
+    if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT_INCHES) reformatScreenplay(el, currentPage, ScriptWrapper)
     setCursorPosition(newElement, 0)
-    CurrentPageTracker.value = getChildElementIndex(newElement.parentElement, scriptWrapper) + 1
+    CurrentPageTracker.value = getChildElementIndex(newElement.parentElement, ScriptWrapper) + 1
 
     if (el.dataset.suggestion) el.dataset.suggestion = "";
     if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el)
@@ -772,7 +298,7 @@ function changeElementTo(el, newType, currentPage) {
  */
 function handleUndo(event) {
     event.preventDefault();
-    undoStack.undo();
+    undoStack.undo(editingTitlePage, ScriptWrapper);
 }
 
 /**
@@ -780,7 +306,7 @@ function handleUndo(event) {
  */
 function handleRedo(event) {
     event.preventDefault();
-    undoStack.redo()
+    undoStack.redo(editingTitlePage, ScriptWrapper)
 }
 
 /**
@@ -846,7 +372,7 @@ function handlePaste(event) {
                     v.text()
                         .then((t) => {
                             const selection = document.getSelection();
-                            undoStack.push()
+                            undoStack.push(editingTitlePage, ScriptWrapper)
                             try {
                                 elementsToPaste = JSON.parse(t)
                                     .map(v => parser.parseFromString(v, "text/html").getElementsByTagName("body")[0].children[0])
@@ -872,7 +398,7 @@ function handleCut(event) {
     const selection = document.getSelection();
     if (selection.isCollapsed) return;
     event.preventDefault();
-    undoStack.push()
+    undoStack.push(editingTitlePage, ScriptWrapper)
     const range = selection.getRangeAt(0);
     const previousPos = range.startOffset
     const startContainer = range.startContainer;
@@ -893,7 +419,7 @@ function handleCut(event) {
  */
 function handleShortCut(event, el, currentPage) {
     const key = event.key.toLowerCase();
-    if (STYLE_CLASSES[key]) { undoStack.push(); handleTextStyling(event, scriptWrapper) }
+    if (STYLE_CLASSES[key]) { undoStack.push(editingTitlePage, ScriptWrapper); handleTextStyling(event, ScriptWrapper) }
     else if (key === "o") { event.preventDefault(); document.getElementById("script-upload").click() }
     else if (key === "p") { event.preventDefault(); document.getElementById("download-pdf").click() }
     else if (key === "s") { event.preventDefault(); document.getElementById("download-fdx").click() }
@@ -904,7 +430,7 @@ function handleShortCut(event, el, currentPage) {
         for (const setting in scriptSettings) {
             if (scriptSettings[setting].Shortcut === key) {
                 event.preventDefault();
-                undoStack.push()
+                undoStack.push(editingTitlePage, ScriptWrapper)
                 changeElementTo(el, setting, currentPage)
                 return
             }
@@ -919,7 +445,7 @@ function handleShortCut(event, el, currentPage) {
  */
 function handleTab(event, el, currentPage) {
     event.preventDefault();
-    undoStack.push()
+    undoStack.push(editingTitlePage, ScriptWrapper)
     if (el.dataset.suggestion) {
         el.textContent += el.dataset.suggestion
         el.dataset.suggestion = ""
@@ -970,18 +496,18 @@ function handleDeletion(event, el, currentPage) {
     const range = selection.getRangeAt(0);
 
     // for ctrl+a -> delete/backspace
-    const allSelected = range.startContainer === scriptWrapper && range.startOffset === 0 &&
-        range.endContainer === scriptWrapper && range.endOffset === scriptWrapper.childNodes.length;
+    const allSelected = range.startContainer === ScriptWrapper && range.startOffset === 0 &&
+        range.endContainer === ScriptWrapper && range.endOffset === ScriptWrapper.childNodes.length;
 
     // for if trying to delete from the first position of first element, or if the document is completely blank
-    const isFirstElement = el === scriptWrapper.firstElementChild.firstElementChild;
+    const isFirstElement = el === ScriptWrapper.firstElementChild.firstElementChild;
     const cursorAtStart = range.startOffset === 0 || range.startOffset === 1;
     const nothingSelected = selection.isCollapsed;
     const elementIsEmpty = !el.textContent.trim();
     if (!(el === lastSnapshotElement && undoStack.singleDeleteLast && selection.isCollapsed)) {
         undoStack.singleAddLast = false;
         lastSnapshotElement = el;
-        undoStack.push();
+        undoStack.push(editingTitlePage, ScriptWrapper);
         if (selection.isCollapsed && (event.inputType === "deleteContentBackward" || event.inputType === "deleteContentForward" || event.inputType === "deleteWordForward" || event.inputType === "deleteWordBackward")) {
             undoStack.singleDeleteLast = true;
         } else {
@@ -999,9 +525,9 @@ function handleDeletion(event, el, currentPage) {
             newTitleText.appendChild(document.createElement("br"))
             let newTitlePage = document.createElement("div")
             newTitlePage.classList.add("page")
-            emptyElement(scriptWrapper)
+            emptyElement(ScriptWrapper)
             newTitlePage.appendChild(newTitleText)
-            scriptWrapper.appendChild(newTitlePage)
+            ScriptWrapper.appendChild(newTitlePage)
             switchLastFocusedElement(newTitleText)
             setCursorPosition(lastFocusedElement, 0)
         } else {
@@ -1054,8 +580,8 @@ function getAllScreenplayElements(currentElement = null, lastCursorPosition = -1
  * @param {HTMLElement} currentElement 
  * @param {HTMLElement} currentPage 
  */
-function reformatScreenplay(currentElement, currentPage) {
-    const lastScrollPosition = saveScrollPosition();
+function reformatScreenplay(currentElement, currentPage, scriptWrapper) {
+    const lastScrollPosition = saveScrollPosition(scriptWrapper);
     let lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
     const currentPageI = getChildElementIndex(currentPage, scriptWrapper)
@@ -1072,7 +598,7 @@ function reformatScreenplay(currentElement, currentPage) {
     }
 
     setCursorPosition(currentElement, lastCursorPosition)
-    restoreScrollPosition(lastScrollPosition)
+    restoreScrollPosition(lastScrollPosition, scriptWrapper)
 }
 
 /**
@@ -1083,11 +609,11 @@ function reformatScreenplay(currentElement, currentPage) {
 function getScriptElementAndCurrentPage(node) {
     let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (scriptEl.tagName === "ARTICLE") {
-        if (scriptEl.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
+        if (scriptEl.childElementCount <= 1 && !ScriptWrapper.firstChild.firstChild) {
             newBlankScript(true)
-            return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
+            return [ScriptWrapper.firstChild.firstChild, ScriptWrapper.firstChild]
         } else {
-            return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
+            return [ScriptWrapper.firstChild.firstChild, ScriptWrapper.firstChild]
         }
     }
     else {
@@ -1164,7 +690,7 @@ function handleKeyDown(event) {
 function handleKeyUp(event) {
     event.stopPropagation();
     const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
-    CurrentPageTracker.value = getChildElementIndex(currentPage, scriptWrapper) + 1
+    CurrentPageTracker.value = getChildElementIndex(currentPage, ScriptWrapper) + 1
     if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage)
 }
 
@@ -1194,7 +720,7 @@ function handleBeforeInput(event) {
         if (!(child === lastSnapshotElement && undoStack.singleAddLast && event.inputType === "insertText")) {
             undoStack.singleDeleteLast = false;
             lastSnapshotElement = child;
-            undoStack.push();
+            undoStack.push(editingTitlePage, ScriptWrapper);
             if (event.inputType === "insertText") {
                 undoStack.singleAddLast = true;
             } else {
@@ -1275,11 +801,11 @@ function handleInput(event) {
     let lastCursorPosition = getCursorPosition(child)
 
     handleAutocomplete(event, child, currentPage);
-    if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {// edge case where all elements are empty with <br>
+    if (ScriptWrapper.childElementCount <= 1 && !ScriptWrapper.firstChild.firstChild) {// edge case where all elements are empty with <br>
         newBlankScript(true)
     } else {
-        if ((lastElementLineCount != newLineCount && lastFocusedElement === child) || !lastFocusedElement) reformatScreenplay(child, currentPage)
-        else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage)
+        if ((lastElementLineCount != newLineCount && lastFocusedElement === child) || !lastFocusedElement) reformatScreenplay(child, currentPage, ScriptWrapper)
+        else if (DELETE_INPUT_TYPES.includes(event.inputType) && lastFocusedElement !== child) reformatScreenplay(child, currentPage, ScriptWrapper)
     }
 
     switchLastFocusedElement(child);
@@ -1413,10 +939,10 @@ function downloadFDX(event) {
 
         const parser = new DOMParser()
 
-        if (!editingTitlePage) titlePageButton.click();
+        if (!editingTitlePage) TitlePageButton.click();
         let newTitlePageContent = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
         addTitlePageToXML(newTitlePageContent, document.getElementsByTagName("titletext"))
-        titlePageButton.click();
+        TitlePageButton.click();
 
         let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
         const [allElements, _, __] = getAllScreenplayElements();
@@ -1444,7 +970,7 @@ function downloadFDX(event) {
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url;
-        a.download = fileNameInput.value ? `${fileNameInput.value}.fdx` : `New Script.fdx`
+        a.download = FileNameInput.value ? `${FileNameInput.value}.fdx` : `New Script.fdx`
         a.click()
 
         URL.revokeObjectURL(url);
@@ -1454,7 +980,6 @@ function downloadFDX(event) {
     } finally {
         button.disabled = false;
     }
-
 }
 
 /**
@@ -1503,17 +1028,17 @@ function newBlankScript(preserveCurrentInfo = false) {
         loadBlankXMLDoc().catch(e => console.warn(e))
         characterSet = new Set();
         undoStack = new UndoStack();
-        fileNameInput.value = "New Script";
+        FileNameInput.value = "New Script";
     }
-    while (scriptWrapper.firstChild) {
-        scriptWrapper.removeChild(scriptWrapper.firstChild)
+    while (ScriptWrapper.firstChild) {
+        ScriptWrapper.removeChild(ScriptWrapper.firstChild)
     }
     let newSceneHeading = document.createElement("sceneheading")
     newSceneHeading.appendChild(document.createElement("br"))
     let newPage = document.createElement("div")
     newPage.classList.add("page")
     newPage.appendChild(newSceneHeading)
-    scriptWrapper.appendChild(newPage)
+    ScriptWrapper.appendChild(newPage)
     lastSnapshotElement = newSceneHeading
     switchLastFocusedElement(newSceneHeading);
     setCursorPosition(lastFocusedElement, 0)
@@ -1533,37 +1058,7 @@ function getCharacterInfo(doc) {
     return res
 }
 
-/**
- * Grabs the last screenplay innerHTML, script settings, original xml document, 
- * file name, character set, and undo stack from local storage.
- * @returns {[boolean, string|null, ElementSettings | null, Document |null, string | null, Set|null, {top:number, left:number} | null, number|null, string|null]}
- */
-function tryGetLastScreenplay() {
-    if (localStorage.getItem(LAST_UNDO_STACK_KEY)) {
-        localStorage.removeItem(LAST_UNDO_STACK_KEY)
-    }
-    const lastScreenplay = localStorage.getItem(LAST_SCREENPLAY_KEY)
-    const lastTitlePage = localStorage.getItem(LAST_TITLE_PAGE_KEY)
-    const lastScriptSettings = localStorage.getItem(LAST_SCRIPT_SETTINGS_KEY)
-    const lastOriginalXML = localStorage.getItem(LAST_XML_DOC_KEY)
-    const lastFileName = localStorage.getItem(LAST_FILE_NAME_KEY)
-    const lastCharSet = localStorage.getItem(LAST_CHARACTER_SET_KEY)
-    const lastScrollPosition = localStorage.getItem(LAST_SCROLL_POSITION_KEY)
-    const lastCursorPosition = localStorage.getItem(LAST_CURSOR_POSITION_KEY)
 
-    if (lastScreenplay) {
-        const domParser = new DOMParser()
-        const lastXMLDoc = domParser.parseFromString(lastOriginalXML, 'text/xml')
-        const parseError = lastXMLDoc.querySelector('parseerror')
-        if (parseError) {
-            console.error("Failed to parse stored xml", parseError.textContent)
-            lastXMLDoc === null;
-        }
-        return [true, lastScreenplay, JSON.parse(lastScriptSettings), lastXMLDoc, lastFileName, new Set(JSON.parse(lastCharSet)), JSON.parse(lastScrollPosition), parseInt(lastCursorPosition), lastTitlePage]
-    } else {
-        return [false, null, null, null, null, null, null, null, null]
-    }
-}
 
 /**
  * @param {string} str 
@@ -1585,10 +1080,10 @@ function getElementCoords(el, font) {
     if ((el.tagName === "TITLETEXT" || el.tagName === "ENDOFACT" || el.tagName === "NEWACT") && el.textContent) {
         const width = font.widthOfTextAtSize(el.textContent, 16);
         if (elStyles.textAlign === "center") {
-            xVal = (DEFAULT_PAGE_WIDTH * PIXELS_PER_INCH / 2 - width / 2)
+            xVal = (DEFAULT_PAGE_WIDTH_INCHES * PIXELS_PER_INCH / 2 - width / 2)
         }
         else if (elStyles.textAlign === "right") {
-            xVal = (DEFAULT_PAGE_WIDTH - 1) * PIXELS_PER_INCH - width
+            xVal = (DEFAULT_PAGE_WIDTH_INCHES - 1) * PIXELS_PER_INCH - width
         }
     } else {
         xVal += parseInt(elStyles.paddingLeft.substring(0, elStyles.paddingLeft.lastIndexOf('p')))
@@ -1667,7 +1162,6 @@ function getTextNodeStyles(textNode) {
 }
 
 /**
- * TODO: Figure out printing styled text.
  * @param {HTMLElement[]} allPages 
  * @param {*} pdfDoc 
  * @param {number} LetterPageWidth 
@@ -1697,11 +1191,10 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             const fontSize = 12 | pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
             const elCoords = getElementCoords(element, initialFont)
             elCoords.x = pxToPt(element.tagName === "TRANSITION"
-                ? (DEFAULT_PAGE_WIDTH + DEFAULT_LEFT_MARGIN) * POINTS_PER_INCH - initialFont.widthOfTextAtSize(element.textContent, fontSize)
+                ? (DEFAULT_PAGE_WIDTH_INCHES + DEFAULT_LEFT_MARGIN_INCHES) * POINTS_PER_INCH - initialFont.widthOfTextAtSize(element.textContent, fontSize)
                 : elCoords.x)
             elCoords.y = pxToPt(elCoords.y)
 
-            // TODO: finish this
             let lineX = elCoords.x;
             let lineY = LetterPageHeight - elCoords.y - fontSize;
             let textNodes = getContainedTextNodes(element)
@@ -1721,7 +1214,7 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
                     thisFont,
                     fontSize,
                     pxToPt(getElementMaxWidth(element)),
-                    element.tagName === "TRANSITION" ? 0 : lineX - DEFAULT_LEFT_MARGIN * POINTS_PER_INCH - pxToPt(elementStyles.paddingLeft ? parseInt(elementStyles.paddingLeft.substring(0, elementStyles.paddingLeft.lastIndexOf("p")
+                    element.tagName === "TRANSITION" ? 0 : lineX - DEFAULT_LEFT_MARGIN_INCHES * POINTS_PER_INCH - pxToPt(elementStyles.paddingLeft ? parseInt(elementStyles.paddingLeft.substring(0, elementStyles.paddingLeft.lastIndexOf("p")
                     )) : 0)
                 )
                 // const pdfLineY = LetterPageHeight - lineY - fontSize
@@ -1776,14 +1269,26 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
         }
     }
 }
-
+/**
+ * @param {{regular:any, bold:any, italic:any, boldItalic:any}} fonts 
+ * @param {CSSStyleDeclaration} element 
+ * @returns 
+ */
+function resolveFont(fonts, element) {
+    const isBold = element.fontWeight === 'bold' || element.fontWeight >= 700;
+    const isItalic = element.fontStyle === 'italic';
+    if (isBold && isItalic) return fonts.boldItalic;
+    if (isBold) return fonts.bold;
+    if (isItalic) return fonts.italic;
+    return fonts.regular;
+}
 /**
  * @param {Event} e 
  */
 async function downloadPDF(e) {
     e.preventDefault()
-    const LetterPageWidth = DEFAULT_PAGE_WIDTH * POINTS_PER_INCH;
-    const LetterPageHeight = DEFAULT_PAGE_HEIGHT * POINTS_PER_INCH;
+    const LetterPageWidth = DEFAULT_PAGE_WIDTH_INCHES * POINTS_PER_INCH;
+    const LetterPageHeight = DEFAULT_PAGE_HEIGHT_INCHES * POINTS_PER_INCH;
     const button = event.target;
     button.disabled = true; // simple guard against double-click while generating
 
@@ -1800,13 +1305,13 @@ async function downloadPDF(e) {
         };
         let sceneCount = 1;
         if (!editingTitlePage) {
-            titlePageButton.click()
+            TitlePageButton.click()
         }
         addPagesToDoc(document.getElementsByClassName("page"), pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount)
-        titlePageButton.click()
+        TitlePageButton.click()
         addPagesToDoc(document.getElementsByClassName('page'), pdfDoc, LetterPageWidth, LetterPageHeight, fonts, sceneCount)
         const pdfBytes = await pdfDoc.save();
-        triggerDownload(pdfBytes, fileNameInput.value + '.pdf');
+        triggerDownload(pdfBytes, FileNameInput.value + '.pdf');
 
     } catch (err) {
         console.error('PDF export failed:', err);
@@ -1822,10 +1327,29 @@ async function downloadPDF(e) {
  */
 function handleOnClick(e) {
     const [el, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
-    CurrentPageTracker.value = getChildElementIndex(currentPage, scriptWrapper) + 1
+    CurrentPageTracker.value = getChildElementIndex(currentPage, ScriptWrapper) + 1
     switchLastFocusedElement(el)
 }
 
+function hexToRgb(hex) {
+    const clean = hex.replace('#', '');
+    const r = parseInt(clean.substring(0, 2), 16) / 255;
+    const g = parseInt(clean.substring(2, 4), 16) / 255;
+    const b = parseInt(clean.substring(4, 6), 16) / 255;
+    return rgb(r, g, b);
+}
+
+function triggerDownload(bytes, filename) {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 /**
  * 
  * @param {Event} e 
@@ -1833,18 +1357,18 @@ function handleOnClick(e) {
 function toggleEditTitlePage(e) {
     e.preventDefault();
     if (editingTitlePage) {
-        titlePageOuterHTML = scriptWrapper.innerHTML
-        scriptWrapper.innerHTML = scriptInnerHTML;
-        titlePageButton.textContent = "Edit Title Page"
+        titlePageOuterHTML = ScriptWrapper.innerHTML
+        ScriptWrapper.innerHTML = scriptInnerHTML;
+        TitlePageButton.textContent = "Edit Title Page"
     } else {
-        scriptInnerHTML = scriptWrapper.innerHTML
-        scriptWrapper.innerHTML = titlePageOuterHTML
-        titlePageButton.textContent = "Edit Script"
+        scriptInnerHTML = ScriptWrapper.innerHTML
+        ScriptWrapper.innerHTML = titlePageOuterHTML
+        TitlePageButton.textContent = "Edit Script"
     }
     editingTitlePage = !editingTitlePage;
 }
 function removeUndoIDs() {
-    for (let page of scriptWrapper.children) {
+    for (let page of ScriptWrapper.children) {
         for (let el of page.children) {
             el.removeAttribute("id")
         }
@@ -1858,7 +1382,7 @@ function handleOnLoad(e) {
 
     let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage] = tryGetLastScreenplay()
     if (ok) {
-        scriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
+        ScriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
         titlePageOuterHTML = lastTitlePage
         if (lastSettings) scriptSettings = lastSettings
         else loadDefaultSettings();
@@ -1866,17 +1390,15 @@ function handleOnLoad(e) {
         if (lastXMLDoc) originalXML = lastXMLDoc
         else loadBlankXMLDoc();
 
-        fileNameInput.value = lastFileName ? lastFileName : "New Script"
+        FileNameInput.value = lastFileName ? lastFileName : "New Script"
 
         characterSet = lastCharacterSet ? lastCharacterSet : new Set();
 
-        // undoStack = lastUndoStack ? new UndoStack(lastUndoStack.limit, lastUndoStack.undo_, lastUndoStack.redo_, lastUndoStack.singleDeleteLast, lastUndoStack.singleAddLast, lastUndoStack.uid) : new UndoStack()
-
         const maybeLastFocused = document.getElementsByClassName("lastFocused")[0];
         if (maybeLastFocused) switchLastFocusedElement(maybeLastFocused)
-        else switchLastFocusedElement(scriptWrapper.firstChild.firstChild)
+        else switchLastFocusedElement(ScriptWrapper.firstChild.firstChild)
 
-        if (lastScrollPosition) restoreScrollPosition(lastScrollPosition)
+        if (lastScrollPosition) restoreScrollPosition(lastScrollPosition, ScriptWrapper)
 
         if (lastCursorPosition) setCursorPosition(lastFocusedElement, lastCursorPosition)
         else setCursorPosition(lastFocusedElement, 0)
@@ -1894,24 +1416,24 @@ for (let optMenuBtn of document.getElementsByClassName("option-menu-button")) {
 }
 window.addEventListener("load", handleOnLoad)
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
-scriptWrapper.addEventListener("keydown", handleKeyDown)
+ScriptWrapper.addEventListener("keydown", handleKeyDown)
 // scriptWrapper.addEventListener("focusout", handleFocusOut)
-scriptWrapper.addEventListener("keyup", handleKeyUp)
-scriptWrapper.addEventListener("input", handleInput)
-scriptWrapper.addEventListener("beforeinput", handleBeforeInput)
-scriptWrapper.addEventListener("click", handleOnClick)
-scriptWrapper.addEventListener("cut", handleCut);
-scriptWrapper.addEventListener("paste", handlePaste)
-scriptWrapper.addEventListener("copy", handleCopy)
+ScriptWrapper.addEventListener("keyup", handleKeyUp)
+ScriptWrapper.addEventListener("input", handleInput)
+ScriptWrapper.addEventListener("beforeinput", handleBeforeInput)
+ScriptWrapper.addEventListener("click", handleOnClick)
+ScriptWrapper.addEventListener("cut", handleCut);
+ScriptWrapper.addEventListener("paste", handlePaste)
+ScriptWrapper.addEventListener("copy", handleCopy)
 
-titlePageButton.addEventListener("click", toggleEditTitlePage)
+TitlePageButton.addEventListener("click", toggleEditTitlePage)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("download-pdf").addEventListener('click', downloadPDF)
 document.getElementById("new-blank").addEventListener("click", (e) => { newBlankScript() })
-window.addEventListener("visibilitychange", saveCurrentScreenplay)
+window.addEventListener("visibilitychange", (e) => saveCurrentScreenplay(e, originalXML, ScriptWrapper, editingTitlePage, titlePageOuterHTML, scriptInnerHTML, scriptSettings, FileNameInput, characterSet, lastFocusedElement))
 document.getElementById("menu-button-open").addEventListener("click", (e) => document.getElementById("script-upload").click())
-document.getElementById("undo-button").addEventListener("click", (e) => undoStack.undo())
-document.getElementById("redo-button").addEventListener("click", (e) => undoStack.redo())
+document.getElementById("undo-button").addEventListener("click", (e) => undoStack.undo(editingTitlePage, ScriptWrapper))
+document.getElementById("redo-button").addEventListener("click", (e) => undoStack.redo(editingTitlePage, ScriptWrapper))
 document.getElementById("element-types").addEventListener("click", (e) => {
     if (editingTitlePage) return
     const [el, currentPage] = getScriptElementAndCurrentPage(lastFocusedElement)
@@ -1925,20 +1447,11 @@ CurrentPageTracker.addEventListener("keydown", (e) => {
     if (isNaN(parseInt(e.target.value))) return
     e.preventDefault();
     if (e.target.value <= 0) e.target.value = 1;
-    else if (e.target.value > scriptWrapper.childElementCount) e.target.value = scriptWrapper.childElementCount;
-    setCursorPosition(scriptWrapper.children[e.target.value - 1].firstChild, 0)
-    restoreScrollPosition({ top: (e.target.value - 1) * (11 * 96 + 16) + 1, left: 0 })
-    // if (scriptWrapper)
-    // setCursorPosition()
+    else if (e.target.value > ScriptWrapper.childElementCount) e.target.value = ScriptWrapper.childElementCount;
+    setCursorPosition(ScriptWrapper.children[e.target.value - 1].firstChild, 0)
+    restoreScrollPosition({ top: (e.target.value - 1) * (11 * 96 + 16) + 1, left: 0 }, ScriptWrapper)
 })
-/**
- * @param {HTMLElement} element 
- * @param {{top:number, left:number}} state 
- */
-function restoreScrollPosition(state) {
-    scriptWrapper.scrollTop = state.top;
-    scriptWrapper.scrollLeft = state.left
-}
+
 
 /**
  * @typedef {object} ScrollElement
@@ -1956,37 +1469,6 @@ function restoreScrollPosition(state) {
  *  @property {ScrollElement} element
  *  @property {Ancestor[]} ancestors
  */
-
-/**
- * @param {HTMLElement} element 
- * @returns {{top:number, left:number}}
- */
-function saveScrollPosition() {
-    return { top: scriptWrapper.scrollTop, left: scriptWrapper.scrollLeft }
-}
-
-/**
- * @param {HTMLElement} element 
- * @returns {number}
- */
-function getCursorPosition(element) {
-    const selection = window.getSelection();
-
-    if (selection.rangeCount === 0) return 0;
-
-    const range = selection.getRangeAt(0);
-
-    // Make sure the selection is actually inside our element
-    if (!element.contains(range.startContainer)) return 0;
-
-    // Create a range from the start of the element to the start of the selection
-    const preCaretRange = document.createRange();
-    preCaretRange.selectNodeContents(element);
-    preCaretRange.setEnd(range.startContainer, range.startOffset);
-
-    // The length of that range's text content is the global cursor offset
-    return preCaretRange.toString().length;
-}
 
 function setCursorPosition(element, position) {
     element.focus();
@@ -2036,660 +1518,4 @@ function setCursorPosition(element, position) {
     // the next frame lets layout settle first so the caret actually paints.
     applySelection()
     // requestAnimationFrame(applySelection);
-}
-
-/**
- * @callback KeepWithNextPredicate
- * @param {HTMLElement} element
- * @returns {boolean} True if this element should never be the last one on a page.
- */
-
-/**
- * @typedef {Object} PaginationOptions
- * @property {string} [pageClassName='page']
- * @property {number} [pageHeightIn=11]
- * @property {string} [characterTagName='character'] Tag name used for character cues.
- *   Also reused (with different text) to render the generated (MORE) and
- *   (CONT'D) lines, so they automatically pick up your existing CSS.
- * @property {string} [dialogueTagName='dialogue'] Tag name used for dialogue blocks.
- *   Only elements with this tag are eligible for mid-element splitting.
- * @property {string} [moreText='(MORE)']
- * @property {string} [contdText="(CONT'D)"]
- * @property {number} [minWordsBeforeSplit=4] Minimum words that must remain on the
- *   first half of a split. Prevents splitting after just one or two words.
- * @property {number} [minWordsAfterSplit=4] Minimum words required on the
- *   continuation half. Prevents leaving a lone word dangling as a "widow"
- *   at the top of the next page.
- * @property {KeepWithNextPredicate} [isKeepWithNext]
- */
-
-/**
- * @param {PaginationOptions} options 
- * @returns {HTMLElement}
- */
-function createPage(options) {
-    const page = document.createElement('div');
-    // page.setAttribute("contenteditable", "true")
-    page.classList.add(options.pageClassName);
-    Object.assign(page.style, {
-        overflow: 'visible',
-        minHeight: '0',
-    });
-    return page;
-}
-
-/**
- * @param {HTMLElement} el 
- * @param {HTMLElement[]} pages 
- * @param {HTMLElement} currentPage 
- * @param {HTMLDivElement} sandbox 
- * @param {PaginationOptions} options 
- * @returns {HTMLElement}
- */
-function startNewPageWith(el, pages, currentPage, sandbox, options) {
-    pages.push(currentPage);
-    currentPage = createPage(options);
-    sandbox.appendChild(currentPage);
-    currentPage.appendChild(el);
-    return currentPage
-}
-
-/**
- * @param {HTMLElement} page 
- * @param {number} pageHeightPx 
- * @returns {boolean}
- */
-const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
-
-/**
- * Splits a flat, in-order array of screenplay element nodes into an array of
- * page container elements sized to physical page dimensions.
- *
- * Dialogue splitting: if a <dialogue> element (tag configurable via
- * `dialogueTagName`) would overflow the current page, this function performs
- * a binary search over its word tokens to find the maximum amount of text
- * that fits alongside a trailing "(MORE)" line. The remaining text becomes a
- * new <dialogue> element placed at the top of the next page, preceded by a
- * repeated character cue reading "NAME (CONT'D)". This repeats automatically
- * if the remainder is itself still too long for a single page.
- *
- * Splitting is skipped (falls back to moving the whole element to the next
- * page) if the resulting halves would be too short per minWordsBeforeSplit /
- * minWordsAfterSplit, or if there's no usable room on the current page at all.
- *
- * @param {HTMLElement[]} elements Flat array of screenplay element nodes, in
- *   script order.
- * @param {HTMLElement} currentElement
- * @param {number} lastCursorPosition
- * @param {PaginationOptions} [options]
- * @returns {[HTMLElement[], HTMLElement, number]} Array of page container elements, populated and
- *   detached (not yet appended anywhere).
- */
-function paginateScreenplay(elements, currentElement = null, lastCursorPosition = -1, options = {
-    pageClassName: 'page',
-    pageHeightIn: DEFAULT_PAGE_HEIGHT - DEFAULT_BOTTOM_MARGIN - DEFAULT_TOP_MARGIN,
-    characterTagName: 'character',
-    dialogueTagName: 'dialogue',
-    moreText: '(MORE)',
-    contdText: "(CONT'D)",
-    minWordsBeforeSplit: 4,
-    minWordsAfterSplit: 4,
-    isKeepWithNext: null,
-}) {
-    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
-
-    // Pass 1: measure everything in ONE reflow.
-    const heights = measureHeights(elements, options, pageHeightPx);
-
-    const heightMap = new WeakMap();
-    elements.forEach((el, i) => heightMap.set(el, heights[i]));
-
-    const scratch = document.createElement('div');
-    Object.assign(scratch.style, {
-        position: 'absolute',
-        left: '-99999px',
-        top: '0',
-        pointerEvents: 'none',
-    });
-    document.body.appendChild(scratch);
-
-    // apply the correct font/line-height/width styles so measurements are accurate —
-    // easiest is to clone them from your real page container:
-    const template = createPage(options);
-    scratch.className = template.className;
-    Object.assign(scratch.style, {
-        width: getComputedStyle(template).width,
-        // whatever else affects text wrapping: font, padding, etc.
-    });
-
-    // Pass 2: pack using pure arithmetic — zero DOM reads.
-    const pageBuckets = [];
-    let currentEls = [];
-    let currentHeight = 0;
-    let lastCharacterEl = null;
-
-    function flushPage() {
-        pageBuckets.push(currentEls);
-        currentEls = [];
-        currentHeight = 0;
-    }
-
-    function startNewPage(el, h) {
-        flushPage();
-        currentEls.push(el);
-        currentHeight = h;
-    }
-    function heightOf(el) { return measureOne(el, scratch); }
-
-    for (let i = 0; i < elements.length; i++) {
-        const el = elements[i];
-        const tag = el.tagName.toLowerCase();
-        const h = heights[i];
-
-        if (tag === options.characterTagName) lastCharacterEl = el;
-
-        if (currentEls.length === 0) {
-            currentEls.push(el);
-            currentHeight = h;
-        } else if (el.tagName === "NEWACT") {
-            startNewPage(el, h)
-        } else if (currentHeight + h > pageHeightPx) {
-            if (tag === options.dialogueTagName) {
-                const remaining = pageHeightPx - currentHeight;
-                const orphanCharacter = currentEls[currentEls.length - 1].tagName.toLowerCase() === options.characterTagName;
-                const [split, newCurrentElement, newLastCursorPosition] = attemptSplitDialogue(el, lastCharacterEl, remaining, options, scratch, currentElement, lastCursorPosition);
-                if (newCurrentElement) { currentElement = newCurrentElement; lastCursorPosition = newLastCursorPosition; }
-                if (split) {
-                    currentEls.push(split.firstPart);
-                    flushPage();
-                    // currentEls.push(split.nextPageCharacter);
-                    // currentHeight = heightOf(split.nextPageCharacter, scratch);   // genuinely new element — needs measuring
-                    elements.splice(i + 1, 0, split.secondPart);
-                    // elements.push(split.secondPart)
-                    const secondPartHeight = heightOf(split.secondPart, scratch);  // also genuinely new
-                    heights.splice(i + 1, 0, secondPartHeight);
-                    // heights.push(secondPartHeight)
-                    heightMap.set(split.secondPart, secondPartHeight);             // keep the map in sync
-                } else if (orphanCharacter) {
-                    const orphan = currentEls.pop();
-                    currentHeight -= heightMap.get(orphan);   // known height, no measurement
-                    startNewPage(orphan, heightMap.get(orphan));
-                    currentEls.push(el);
-                    currentHeight += h;
-                } else {
-                    startNewPage(el, h);
-                }
-            } else {
-                startNewPage(el, h);
-            }
-        } else {
-            currentEls.push(el);
-            currentHeight += h;
-        }
-
-        if (options.isKeepWithNext && options.isKeepWithNext(el)) {
-            const isLast = i === elements.length - 1;
-            const nextOverflows = !isLast && (currentHeight + heights[i + 1] > pageHeightPx);
-            if (isLast || nextOverflows) {
-                currentEls.pop();
-                currentHeight -= h;
-                startNewPage(el, h);
-            }
-        }
-    }
-    pageBuckets.push(currentEls);
-    document.body.removeChild(scratch);
-    // Pass 3: build real pages, one batched write each — still no reads.
-    return [pageBuckets.map((els, i) => {
-        const page = createPage(options);
-        const frag = document.createDocumentFragment();
-        els.forEach(el => frag.appendChild(el));
-        page.appendChild(frag);
-        return page;
-    }), currentElement, lastCursorPosition];
-}
-
-function measureHeights(elements, options, maxPageHeightPx) {
-    const sandbox = document.createElement('div');
-    Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none' });
-    const measurePage = createPage(options);
-    Object.assign(measurePage.style, { height: 'auto', overflow: 'visible' });
-    sandbox.appendChild(measurePage);
-    document.body.appendChild(sandbox);
-
-    const clones = elements.map(el => el.cloneNode(true));
-    const frag = document.createDocumentFragment();
-    clones.forEach(c => frag.appendChild(c));
-    measurePage.appendChild(frag);           // one write
-    let currentPageHeight = 0;
-    const heights = clones.map((c) => { // TODO: refine this so it proparly accounts for there not being top padding on the first element of a page
-        let elementHeight = c.getBoundingClientRect().height
-        currentPageHeight += elementHeight
-        if (currentPageHeight > maxPageHeightPx) {
-            const maybePadding = getComputedStyle(c).paddingTop
-            elementHeight -= parseInt(maybePadding.substring(0, maybePadding.indexOf('p')))
-            // if (c.tagName !== "DIALOGUE") {
-            // }
-            currentPageHeight = elementHeight
-        }
-        return elementHeight
-    }); // one reflow serves all reads
-
-    document.body.removeChild(sandbox);
-    return heights;
-}
-
-/**
- * Attempts to split `dialogueEl` so the first part fits in `remainingHeightPx`.
- * Returns null if it can't be split cleanly (too little dialogue left before/after
- * the break, or not even minWordsBeforeSplit fits) — caller should then move the
- * whole character+dialogue pair to the next page instead.
- */
-function attemptSplitDialogue(dialogueEl, characterEl, remainingHeightPx, options, scratch, currentElement, lastCursorPosition) {
-    let newCurrentElement = false;
-    const words = dialogueEl.textContent.trim().split(/\s+/);
-    const { minWordsBeforeSplit: minBefore, minWordsAfterSplit: minAfter } = options;
-
-    if (words.length < minBefore + minAfter) return [null, null, null];
-
-    const continuedCue = createContinuedElement(options);
-    const continuedHeight = measureOne(continuedCue, scratch);
-    const budget = remainingHeightPx - continuedHeight;
-    if (budget <= 0) return [null, null, null];
-
-    // Binary search the largest word count that still fits `budget`.
-    let lo = minBefore;
-    let hi = words.length - minAfter;
-    let best = -1;
-
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        const candidate = cloneWithText(dialogueEl, words.slice(0, mid).join(' '));
-        const h = measureOne(candidate, scratch);
-        if (h <= budget) {
-            best = mid;
-            lo = mid + 1;
-        } else {
-            hi = mid - 1;
-        }
-    }
-
-    if (best === -1) return [null, null, null]; // even minWordsBeforeSplit overflows the remaining space
-    const firstPart = cloneWithText(dialogueEl, words.slice(0, best).join(' '));
-    firstPart.dataset.more = "(MORE)"
-    firstPart.dataset.contd = ""
-    const secondPart = cloneWithText(dialogueEl, words.slice(best).join(' '));
-    secondPart.dataset.more = ""
-    secondPart.dataset.contd = `${characterEl.textContent.trim().toUpperCase()} (CONT'D)`
-    if (currentElement && currentElement === dialogueEl) {
-        newCurrentElement = true;
-        if (lastCursorPosition >= firstPart.textContent.length) {
-            currentElement = secondPart
-            lastCursorPosition -= firstPart.textContent.length + 1
-        } else {
-            currentElement = firstPart
-        }
-    }
-    const nextPageCharacter = cloneWithText(
-        characterEl,
-        `${characterEl.textContent.trim()} ${options.contdText}`
-    );
-    if (newCurrentElement) {
-        return [{ firstPart, continuedCue, nextPageCharacter, secondPart }, currentElement, lastCursorPosition];
-    } else {
-        return [{ firstPart, continuedCue, nextPageCharacter, secondPart }, null, null];
-    }
-}
-
-function createContinuedElement(options) {
-    const tag = options.continuedTagName || 'continued';
-    const el = document.createElement(tag);
-    el.textContent = options.moreText;
-    return el;
-}
-
-/** Shallow clone — keeps tag name, classes, and attributes; swaps only the text. */
-/**
- * 
- * @param {HTMLElement} el 
- * @param {string} text 
- * @returns {HTMLElement}
- */
-function cloneWithText(el, text) {
-    const clone = el.cloneNode(false);
-    clone.textContent = text;
-    return clone;
-}
-
-/** One write + one read + one write. Kept isolated so it doesn't disturb pass-1's measurements. */
-function measureOne(el, scratch) {
-    scratch.appendChild(el.cloneNode(true));
-    const h = scratch.lastElementChild.getBoundingClientRect().height;
-    scratch.removeChild(scratch.lastElementChild);
-    return h;
-}
-
-/**
- * Rich text formatting toggler for contenteditable elements.
- * Formats are represented as <span class="bold|italics|underline">...</span>,
- * which can nest (e.g. bold inside italics) to support combined styles.
- */
-
-const STYLE_CLASSES = { b: "bold", i: "italic", u: "underline" };
-
-/**
- * @param {KeyboardEvent} event 
- * @param {string} key 
- */
-function handleTextStylingNew(event, key) {
-    event.preventDefault()
-    const selection = document.getSelection();
-    const range = selection.getRangeAt(0)
-    const contents = range.cloneContents();
-    splitRangeBoundaries(range)
-    let textNodes = getTextNodesInRange(range)
-    // let firstEl = range.startContainer.parentElement;
-    // let lastEl = range.endContainer.parentElement;
-    // let originalOffset = getCursorPosition(firstEl)
-    // if (selection.direction === "forward") firstEl = range.startContainer.parentElement;
-    // else firstEl = range.endContainer.parentElement;
-    // const contents = range.extractContents()
-    // let newToInsert = []
-    // if (range.commonAncestorContainer.classList?.contains('page')) {
-    //     for (const child of contents.childNodes) {
-    //         let newStyleNode = document.createElement(key);
-    //         newStyleNode.innerHTML = child.innerHTML;
-    //         newToInsert.push(newStyleNode)
-    //     }
-    // } else {
-    //     let newStyleNode = document.createElement(key);
-    //     for (const childText of contents.childNodes) {
-    //         if (childText.nodeType === Node.TEXT_NODE) {
-    //             newStyleNode.innerHTML += childText.textContent;
-    //         } else {
-    //             newStyleNode.innerHTML += childText.outerHTML
-    //         }
-    //     }
-    //     newToInsert.push(newStyleNode)
-    // }
-
-    // // for (const [i, insertMe] of newToInsert.entries()) {
-    // //     if (i === 0) {
-    // //         firstEl.innerHTML += insertMe.outerHTML
-    // //     } else if (i === newToInsert.length - 1) {
-
-    // //     } else {
-
-    // //     }
-    // // }
-
-}
-
-
-
-/**
- * @param {KeyboardEvent} event
- * @param {Element} editableRoot - the contenteditable host (e.g. your script-wrapper).
- *   Passed explicitly rather than derived from the selection, because a
- *   selection-derived boundary can accidentally collapse onto the exact
- *   style span you're trying to detect (see hasStyleAncestor below).
- */
-function handleTextStyling(event, editableRoot) {
-    const key = event.key.toLowerCase();
-
-    event.preventDefault();
-    toggleStyle(STYLE_CLASSES[key], editableRoot);
-}
-
-function toggleStyle(styleClass, editableRoot) {
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return;
-    const range = selection.getRangeAt(0);
-    if (range.collapsed) {
-        toggleCaretStyle(styleClass);
-    } else {
-        toggleSelectionStyle(range, styleClass, selection, editableRoot);
-    }
-}
-
-/* ---------------------------------------------------------------------- */
-/* Collapsed selection (blinking caret, no text highlighted)              */
-/* ---------------------------------------------------------------------- */
-
-// You genuinely can't "style" zero characters. The standard approach
-// (used by every real editor) is to track which styles should apply to
-// the *next* typed characters, rather than trying to insert an empty
-// styled element at the caret (which browsers tend to eat/normalize away).
-const pendingStyles = new Set();
-
-function toggleCaretStyle(styleClass) {
-    const node = window.getSelection().anchorNode;
-    const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-    const alreadyActive = !!el.closest(`.${styleClass}`);
-
-    if (alreadyActive) pendingStyles.delete(styleClass);
-    else pendingStyles.add(styleClass);
-}
-
-// Call this from your `input`/`beforeinput` handler when new text is typed
-// at a caret. It wraps the freshly-inserted text node in spans for every
-// class currently in pendingStyles.
-function applyPendingStylesToNode(textNode) {
-    if (!pendingStyles.size) return;
-    let current = textNode;
-    pendingStyles.forEach((styleClass) => {
-        wrapNodeInStyle(current, styleClass);
-        current = current; // still the same text node, now nested one level deeper
-    });
-}
-
-/* ---------------------------------------------------------------------- */
-/* Non-collapsed selection (actual highlighted text)                      */
-/* ---------------------------------------------------------------------- */
-
-function toggleSelectionStyle(range, styleClass, selection, editableRoot) {
-    splitRangeBoundaries(range);
-    const textNodes = getTextNodesInRange(range);
-    if (!textNodes.length) return;
-
-    // Use the actual editable host as the search boundary, not something
-    // derived from range.commonAncestorContainer. If the whole selection sits
-    // inside one style span, commonAncestorContainer IS that span, and a
-    // boundary equal to it would stop hasStyleAncestor's walk before it ever
-    // checks that span — making an already-styled selection look unstyled.
-    const boundary = editableRoot;
-
-    // Standard rich-text-editor rule: if the WHOLE selection already has the
-    // style, toggling turns it off everywhere; otherwise toggling turns it
-    // on everywhere (including the parts that already had it).
-    const allStyled = textNodes.every((n) => hasStyleAncestor(n, styleClass, boundary));
-
-    if (allStyled) {
-        textNodes.forEach((n) => removeStyleFromNode(n, styleClass, boundary));
-    } else {
-        textNodes.forEach((n) => {
-            if (!hasStyleAncestor(n, styleClass, boundary)) wrapNodeInStyle(n, styleClass);
-        });
-    }
-
-    mergeAdjacentSpans(boundary, styleClass);
-    reselectNodes(selection, textNodes);
-}
-
-// Splits the start/end text nodes of the range so the range's boundaries
-// fall exactly on node boundaries. Without this, wrapping/unwrapping would
-// grab characters outside what the user actually selected.
-function splitRangeBoundaries(range) {
-    const { startContainer, startOffset, endContainer, endOffset } = range;
-
-    if (endContainer.nodeType === Node.TEXT_NODE && endOffset < endContainer.length) {
-        endContainer.splitText(endOffset);
-    }
-    if (startContainer.nodeType === Node.TEXT_NODE && startOffset > 0) {
-        const tail = startContainer.splitText(startOffset);
-        if (startContainer === endContainer) {
-            range.setEnd(tail, endOffset - startOffset);
-        }
-        range.setStart(tail, 0);
-    }
-}
-
-function getTextNodesInRange(range) {
-    // If the whole selection lives inside one text node, commonAncestorContainer
-    // IS that text node — and a TreeWalker rooted on a text node can't walk into
-    // it (text nodes have no children), so it would return nothing. Fall back
-    // to the parent element in that case.
-    const root =
-        range.commonAncestorContainer.nodeType === Node.TEXT_NODE
-            ? range.commonAncestorContainer.parentNode
-            : range.commonAncestorContainer;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-        acceptNode: (node) =>
-            range.intersectsNode(node) && node.textContent.length
-                ? NodeFilter.FILTER_ACCEPT
-                : NodeFilter.FILTER_REJECT,
-    });
-    const nodes = [];
-    let n;
-    while ((n = walker.nextNode())) nodes.push(n);
-    return nodes;
-}
-
-function hasStyleAncestor(node, styleClass, boundary) {
-    let el = node.parentElement;
-    while (el && el !== boundary) {
-        if (el.classList?.contains(styleClass)) return true;
-        el = el.parentElement;
-    }
-    return false;
-}
-
-function wrapNodeInStyle(node, styleClass) {
-    const span = document.createElement("span");
-    span.className = styleClass;
-    node.parentNode.insertBefore(span, node);
-    span.appendChild(node);
-}
-
-// Removes styleClass from whichever ancestor span carries it, splitting
-// that span into up-to-three pieces (before/target/after) so siblings
-// outside the selection keep their formatting untouched.
-function removeStyleFromNode(node, styleClass, boundary) {
-    let el = node.parentElement;
-    while (el && el !== boundary) {
-        if (el.classList?.contains(styleClass)) {
-            unwrapStyleFromChild(el, node, styleClass);
-            return;
-        }
-        el = el.parentElement;
-    }
-}
-
-function unwrapStyleFromChild(styledEl, targetNode, styleClass) {
-    const parent = styledEl.parentNode;
-
-    // find the direct child of styledEl that (contains) targetNode
-    let child = targetNode;
-    while (child.parentNode !== styledEl) child = child.parentNode;
-
-    const children = Array.from(styledEl.childNodes);
-    const idx = children.indexOf(child);
-    const before = children.slice(0, idx);
-    const after = children.slice(idx + 1);
-
-    if (before.length) {
-        const clone = styledEl.cloneNode(false);
-        before.forEach((c) => clone.appendChild(c));
-        parent.insertBefore(clone, styledEl);
-    }
-
-    if (styledEl.classList.length > 1) {
-        // element carried other classes too (e.g. bold + something-else) — keep those
-        const clone = styledEl.cloneNode(false);
-        clone.classList.remove(styleClass);
-        clone.appendChild(child);
-        parent.insertBefore(clone, styledEl);
-    } else {
-        parent.insertBefore(child, styledEl);
-    }
-
-    if (after.length) {
-        const clone = styledEl.cloneNode(false);
-        after.forEach((c) => clone.appendChild(c));
-        parent.insertBefore(clone, styledEl);
-    }
-
-    parent.removeChild(styledEl);
-}
-
-// Collapses runs of adjacent identical spans (e.g. two neighboring
-// span.bold produced by the operations above) back into one.
-//
-// NOTE: deliberately does NOT call root.normalize() here. That would merge
-// any adjacent plain text node siblings across the whole editable root —
-// including nodes still referenced by textNodes[] in toggleSelectionStyle,
-// which reselectNodes uses right after this runs. normalize() deletes the
-// second of two merged nodes (detaching it) and grows the first node's
-// length, either of which corrupts those references before reselection.
-function mergeAdjacentSpans(root, styleClass) {
-    let spans = root.querySelectorAll(`span.${styleClass}`);
-    spans.forEach((span) => {
-        let next = span.nextSibling;
-        while (
-            next &&
-            next.nodeType === Node.ELEMENT_NODE &&
-            next.classList.contains(styleClass) &&
-            next.classList.length === span.classList.length
-        ) {
-            while (next.firstChild) span.appendChild(next.firstChild);
-            const toRemove = next;
-            next = next.nextSibling;
-            toRemove.remove();
-        }
-    });
-}
-
-function reselectNodes(selection, textNodes) {
-    if (!textNodes.length) return;
-    const first = textNodes[0];
-    const last = textNodes[textNodes.length - 1];
-    const range = document.createRange();
-    range.setStart(first, 0);
-    range.setEnd(last, last.length);
-    selection.removeAllRanges();
-    selection.addRange(range);
-}
-
-/**
- * @param {{regular:any, bold:any, italic:any, boldItalic:any}} fonts 
- * @param {CSSStyleDeclaration} element 
- * @returns 
- */
-function resolveFont(fonts, element) {
-    const isBold = element.fontWeight === 'bold' || element.fontWeight >= 700;
-    const isItalic = element.fontStyle === 'italic';
-    if (isBold && isItalic) return fonts.boldItalic;
-    if (isBold) return fonts.bold;
-    if (isItalic) return fonts.italic;
-    return fonts.regular;
-}
-
-function hexToRgb(hex) {
-    const clean = hex.replace('#', '');
-    const r = parseInt(clean.substring(0, 2), 16) / 255;
-    const g = parseInt(clean.substring(2, 4), 16) / 255;
-    const b = parseInt(clean.substring(4, 6), 16) / 255;
-    return rgb(r, g, b);
-}
-
-function triggerDownload(bytes, filename) {
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 }
