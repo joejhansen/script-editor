@@ -2,7 +2,7 @@
  * @param {Element} el 
  * @returns {HTMLElement}
  */
-export function EltoHTML(el) {
+function EltoHTML(el) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
     let elInnerHTML = "";
     for (let tag of el.children) if (tag.tagName === "Text") {

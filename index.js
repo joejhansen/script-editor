@@ -1,13 +1,15 @@
 import { CHANNEL_NAME as BUDGET_CHANNEL } from "./windows/budget/budget.js";
 import { saveCurrentScreenplay, tryGetLastScreenplay } from "./LocalStorage.js";
 import {
-    LoadElSettings, ALL_CAPS_ELEMENTS, AUTOCOMPLETE_TAGS, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_EXTENSIONS,
+    LoadElSettings, ALL_CAPS_ELEMENTS, AUTOCOMPLETE_TAGS, DEFAULT_EXTENSIONS,
     DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS,
-    DEFAULT_TIMES_OF_DAY, DEFAULT_TOP_MARGIN_INCHES, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH,
-    POINTS_PER_INCH, SCENE_INTRO_REGEX, TIME_OF_DAY_REGEX, VALID_FDX_TYPES
+    DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH,
+    POINTS_PER_INCH, SCENE_INTRO_REGEX, TIME_OF_DAY_REGEX, VALID_FDX_TYPES,
+    DEFAULT_FONT_SIZE_PIXELS,
+    DEFAULT_FONT_SIZE_POINTS,
 } from "./ScriptSettings.js";
 import { UndoStack } from "./UndoStack.js";
-import { XMLtoHTML, EltoHTML, parseXMLFromFile, parseXMLString } from "./ScriptConversion.js";
+import { XMLtoHTML, parseXMLFromFile, parseXMLString } from "./ScriptConversion.js";
 import { saveScrollPosition, restoreScrollPosition, getCursorPosition } from "./UX.js";
 import { paginateScreenplay } from "./Pagination.js";
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js";
@@ -25,6 +27,7 @@ const ALIGNMENT_SHORTCUT_TO_RULE = ["left", "center", "right"]
 const ScriptWrapper = document.getElementById("script-main");
 const FileNameInput = document.getElementById("file-name")
 const TitlePageButton = document.getElementById("title-page-toggle")
+const CurrentPageTracker = document.getElementById("current-page")
 
 /** @type {import("./ScriptSettings.js").ElementSettings | null} */
 let defaultScriptSettings = null
@@ -39,7 +42,6 @@ let lastFocusedElement = null;
 let lastElementLineCount = 1;
 /** @type {HTMLElement | null} */
 let lastSnapshotElement = null
-const CurrentPageTracker = document.getElementById("current-page")
 
 /** @type {Set<string>} */
 let characterSet = new Set();
@@ -114,7 +116,6 @@ function loadTitlePage(doc) {
                 } else if (!newTitleText.textContent) {
                     newTitleText.appendChild(document.createElement("br"))
                 }
-
             }
         }
         titleTexts.push(newTitleText)
@@ -126,7 +127,7 @@ function loadTitlePage(doc) {
 /**
  * @param {Event} event 
  */
-function handleFileInput(event) {
+function handleFileInput(event) { // globals
     event.preventDefault()
     /** @type {File} */
     const file = event.target.files?.[0]
@@ -193,7 +194,7 @@ function handleUnfocusCharacter(el) {
 }
 
 /** @param {string} str */
-function setLastCharactersUsed(str) {
+function setLastCharactersUsed(str) { // globals
     if (str === lastCharacterUsed) return;
     secondLastCharacterUsed = lastCharacterUsed;
     lastCharacterUsed = str;
@@ -205,7 +206,7 @@ function setLastCharactersUsed(str) {
  * @param {Element} el
  * @param {Element} currentPage
  */
-function handleEnterKey(event, el, currentPage) {
+function handleEnterKey(event, el, currentPage) { // globals
     event.preventDefault()
     undoStack.push(editingTitlePage, ScriptWrapper)
 
@@ -264,19 +265,19 @@ function newScriptElement(type, textContent = "") {
     return newElement
 }
 
-/**
- * @param {Element} el Element to place cursor within
- * @param {number} pos Position to set curose within element
- */
-function setSelection(el, pos) {
-    el.focus()
-    const range = document.createRange()
-    const sel = window.getSelection()
-    range.setStart(el, pos)
-    range.collapse(true)
-    sel.removeAllRanges()
-    sel.addRange(range)
-}
+// /**
+//  * @param {Element} el Element to place cursor within
+//  * @param {number} pos Position to set curose within element
+//  */
+// function setSelection(el, pos) {
+//     el.focus()
+//     const range = document.createRange()
+//     const sel = window.getSelection()
+//     range.setStart(el, pos)
+//     range.collapse(true)
+//     sel.removeAllRanges()
+//     sel.addRange(range)
+// }
 
 /**
  * @param {HTMLElement} el 
@@ -296,7 +297,7 @@ function changeElementTo(el, newType, currentPage) {
 /**
  * @param {KeyboardEvent} event 
  */
-function handleUndo(event) {
+function handleUndo(event) { // globals
     event.preventDefault();
     undoStack.undo(editingTitlePage, ScriptWrapper);
 }
@@ -304,7 +305,7 @@ function handleUndo(event) {
 /**
  * @param {KeyboardEvent} event 
  */
-function handleRedo(event) {
+function handleRedo(event) { // globals
     event.preventDefault();
     undoStack.redo(editingTitlePage, ScriptWrapper)
 }
@@ -322,23 +323,23 @@ function handleTitleAlignment(e, el, page) {
     else el.style.right = "0"
 }
 
-/**
- * @param {Node[]} nodes 
- * @param {Node[]}
- */
-function mergeSiblingTextNodes(nodes) {
-    if (!nodes.length) return [];
-    let res = [nodes.shift()];
-    for (const node of nodes) {
-        if (node.parentElement === res[res.length - 1].parentElement) {
-            node.parentElement.removeChild(node)
-            res[res.length - 1].textContent += `${node.textContent}`
-        } else {
-            res.push(node)
-        }
-    }
-    return res;
-}
+// /**
+//  * @param {Node[]} nodes 
+//  * @param {Node[]}
+//  */
+// function mergeSiblingTextNodes(nodes) {
+//     if (!nodes.length) return [];
+//     let res = [nodes.shift()];
+//     for (const node of nodes) {
+//         if (node.parentElement === res[res.length - 1].parentElement) {
+//             node.parentElement.removeChild(node)
+//             res[res.length - 1].textContent += `${node.textContent}`
+//         } else {
+//             res.push(node)
+//         }
+//     }
+//     return res;
+// }
 
 /**
  * @type {ClipboardEvent}
@@ -354,13 +355,12 @@ function handleCopy(event) {
     } else {
         navigator.clipboard.write([new ClipboardItem({ ["text/plain"]: clonedContents.textContent })])
     }
-
 }
 
 /**
  * @type {ClipboardEvent}
  */
-function handlePaste(event) {
+function handlePaste(event) { // globals
     event.preventDefault();
     const parser = new DOMParser()
     /** @type {HTMLElement[]} */
@@ -394,7 +394,7 @@ function handlePaste(event) {
 
 }
 
-function handleCut(event) {
+function handleCut(event) { // globals
     const selection = document.getSelection();
     if (selection.isCollapsed) return;
     event.preventDefault();
@@ -417,7 +417,7 @@ function handleCut(event) {
  * @param {Element} el
  * @param {Element} currentPage
  */
-function handleShortCut(event, el, currentPage) {
+function handleShortCut(event, el, currentPage) { // globals
     const key = event.key.toLowerCase();
     if (STYLE_CLASSES[key]) { undoStack.push(editingTitlePage, ScriptWrapper); handleTextStyling(event, ScriptWrapper) }
     else if (key === "o") { event.preventDefault(); document.getElementById("script-upload").click() }
@@ -443,7 +443,7 @@ function handleShortCut(event, el, currentPage) {
  * @param {Element} el 
  * @param {Element} currentPage
  */
-function handleTab(event, el, currentPage) {
+function handleTab(event, el, currentPage) { // globals
     event.preventDefault();
     undoStack.push(editingTitlePage, ScriptWrapper)
     if (el.dataset.suggestion) {
@@ -454,6 +454,7 @@ function handleTab(event, el, currentPage) {
         setCursorPosition(el, el.textContent.length)
         return;
     }
+
     if (el.tagName === "TITLETEXT") {
         let newTitleText = el.cloneNode(true)
         newTitleText.textContent = "";
@@ -491,7 +492,7 @@ function handleTab(event, el, currentPage) {
  * @param {Element} el 
  * @param {Element} currentPage
  */
-function handleDeletion(event, el, currentPage) {
+function handleDeletion(event, el, currentPage) { // globals
     const selection = document.getSelection();
     const range = selection.getRangeAt(0);
 
@@ -584,8 +585,8 @@ function reformatScreenplay(currentElement, currentPage, scriptWrapper) {
     const lastScrollPosition = saveScrollPosition(scriptWrapper);
     let lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
-    const currentPageI = getChildElementIndex(currentPage, scriptWrapper)
-    const currentElementI = getChildElementIndex(currentElement, currentPage)
+    // const currentPageI = getChildElementIndex(currentPage, scriptWrapper)
+    // const currentElementI = getChildElementIndex(currentElement, currentPage)
     const [allElements, combinedCurrentElement, combinedLastCursorPosition] = getAllScreenplayElements(currentElement, lastCursorPosition);
     currentElement = combinedCurrentElement
     lastCursorPosition = combinedLastCursorPosition
@@ -602,11 +603,10 @@ function reformatScreenplay(currentElement, currentPage, scriptWrapper) {
 }
 
 /**
- * 
  * @param {Node} node
  * @returns {[HTMLElement, HTMLElement]} A child script element and the page it exists within
  */
-function getScriptElementAndCurrentPage(node) {
+function getScriptElementAndCurrentPage(node) { // globals
     let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (scriptEl.tagName === "ARTICLE") {
         if (scriptEl.childElementCount <= 1 && !ScriptWrapper.firstChild.firstChild) {
@@ -624,7 +624,7 @@ function getScriptElementAndCurrentPage(node) {
     };
 }
 
-function handleElementPickerUI(el) {
+function handleElementPickerUI(el) { // globals
     if (editingTitlePage) return;
     const changeElTopButton = document.getElementById("element-type-btn")
     if (el.tagName === changeElTopButton.textContent.replace(/\s/g, "").toUpperCase()) return
@@ -651,10 +651,9 @@ function handleElementPickerUI(el) {
 }
 
 /**
- * 
  * @param {HTMLElement} el 
  */
-function switchLastFocusedElement(el) {
+function switchLastFocusedElement(el) { // globals
     if (lastFocusedElement) lastFocusedElement.classList.remove("lastFocused")
     lastFocusedElement = el;
     lastFocusedElement.classList.add("lastFocused")
@@ -666,7 +665,7 @@ function switchLastFocusedElement(el) {
  * @param {HTMLElement} el 
  * @param {HTMLElement} page 
  */
-function handleArrowKeysUp(e, el, page) {
+function handleArrowKeysUp(e, el, page) { // globals
     if (lastFocusedElement !== el && lastFocusedElement.dataset && lastFocusedElement.dataset.suggestion) {
         lastFocusedElement.dataset.suggestion = "";
         if (lastFocusedElement.textContent && lastFocusedElement === "CHARACTER") handleUnfocusCharacter(lastFocusedElement)
@@ -687,28 +686,28 @@ function handleKeyDown(event) {
 /**
  * @param {KeyboardEvent} event 
  */
-function handleKeyUp(event) {
+function handleKeyUp(event) { // globals
     event.stopPropagation();
     const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
     CurrentPageTracker.value = getChildElementIndex(currentPage, ScriptWrapper) + 1
     if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage)
 }
 
-/**
- * @param {FocusEvent} event 
- */
-function handleFocusOut(event) {
-    event.stopPropagation();
-    const thisNode = document.getSelection().anchorNode;
-    const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
-    const currentPage = child.parentElement;
+// /**
+//  * @param {FocusEvent} event 
+//  */
+// function handleFocusOut(event) {
+//     event.stopPropagation();
+//     const thisNode = document.getSelection().anchorNode;
+//     const child = thisNode.nodeType === Node.TEXT_NODE ? thisNode.parentElement : thisNode;
+//     const currentPage = child.parentElement;
 
-}
+// }
 
 /**
  * @param {InputEvent} event 
  */
-function handleBeforeInput(event) {
+function handleBeforeInput(event) { // globals
     if (event.inputType === "insertParagraph") {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
         handleEnterKey(event, child, currentPage)
@@ -760,7 +759,7 @@ let lastAutocomplete = ""; // I'm not sure we need this, might just add more com
  * @param {HTMLElement} currentEl 
  * @param {HTMLElement} currentPage 
  */
-function handleAutocomplete(event, currentEl, currentPage) {
+function handleAutocomplete(event, currentEl, currentPage) { // globals
     if (!AUTOCOMPLETE_TAGS.includes(currentEl.tagName.toLowerCase())) return
     if (currentEl.dataset.suggestion) currentEl.dataset.suggestion = ""
     if (!currentEl.textContent) {
@@ -793,7 +792,7 @@ function handleAutocomplete(event, currentEl, currentPage) {
 /**
  * @param {InputEvent} event 
  */
-function handleInput(event) {
+function handleInput(event) { // globals
     const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode)
     const range = document.createRange();
     range.selectNodeContents(child)
@@ -825,7 +824,7 @@ function tagToFDXType(tagStr) {
  * @param {Document} doc
  * @param {HTMLElement} el 
  */
-function HTMLtoFDX(doc, el) {
+function HTMLtoFDX(doc, el) { // globals
     let paraEl = doc.createElement("Paragraph")
     const htmlTag = el.tagName.toLowerCase();
     paraEl.setAttribute("Type", tagToFDXType(htmlTag))
@@ -912,12 +911,12 @@ function addTitlePageToXML(doc, textEls) {
         let newPara = doc.createElement("Paragraph")
         const textElStyles = window.getComputedStyle(textEl)
         newPara.setAttribute("Alignment", textElStyles.textAlign.at(0).toUpperCase() + textElStyles.textAlign.substring(1))
-        newPara.setAttribute("FirstIndent", parseInt(textElStyles.textIndent.substring(0, textElStyles.textIndent.lastIndexOf('p'))) / 96)
+        newPara.setAttribute("FirstIndent", parseInt(textElStyles.textIndent.substring(0, textElStyles.textIndent.lastIndexOf('p'))) / PIXELS_PER_INCH)
         newPara.setAttribute("Leading", "Regular")
-        newPara.setAttribute("LeftIndent", 1 + parseInt(textElStyles.paddingLeft.substring(0, textElStyles.paddingLeft.lastIndexOf('p'))) / 96)
-        newPara.setAttribute("RightIndent", 7.5 - parseInt(textElStyles.paddingRight.substring(0, textElStyles.paddingRight.lastIndexOf('p'))) / 96)
-        newPara.setAttribute("SpaceBefore", parseInt(textElStyles.paddingTop.substring(0, textElStyles.paddingTop.lastIndexOf('p'))) / 96)
-        newPara.setAttribute("Spacing", parseInt(textElStyles.lineHeight.substring(0, textElStyles.lineHeight.lastIndexOf('p'))) / 16)
+        newPara.setAttribute("LeftIndent", 1 + parseInt(textElStyles.paddingLeft.substring(0, textElStyles.paddingLeft.lastIndexOf('p'))) / PIXELS_PER_INCH)
+        newPara.setAttribute("RightIndent", 7.5 - parseInt(textElStyles.paddingRight.substring(0, textElStyles.paddingRight.lastIndexOf('p'))) / PIXELS_PER_INCH)
+        newPara.setAttribute("SpaceBefore", parseInt(textElStyles.paddingTop.substring(0, textElStyles.paddingTop.lastIndexOf('p'))) / PIXELS_PER_INCH)
+        newPara.setAttribute("Spacing", parseInt(textElStyles.lineHeight.substring(0, textElStyles.lineHeight.lastIndexOf('p'))) / DEFAULT_FONT_SIZE_PIXELS)
         newPara.setAttribute("StartsNewPage", "No")
         let newTextEl = doc.createElement("Text")
         newTextEl.textContent = textEl.textContent
@@ -932,7 +931,7 @@ function addTitlePageToXML(doc, textEls) {
 /**
  * @param {Event}
  */
-function downloadFDX(event) {
+function downloadFDX(event) { // globals
     event.preventDefault();
     const button = event.target;
     try {
@@ -989,7 +988,7 @@ function emptyElement(el) {
     while (el.firstChild) el.removeChild(el.firstChild)
 }
 
-async function loadBlankXMLDoc() {
+async function loadBlankXMLDoc() { // globals
     if (blankScriptXML === null) {
         fetch("BlankFD13.fdx")
             .then(res => res.text())
@@ -1002,7 +1001,7 @@ async function loadBlankXMLDoc() {
     }
 }
 
-async function loadDefaultSettings() {
+async function loadDefaultSettings() { // globals
     if (defaultScriptSettings === null) {
         fetch("DefaultSettings.xml")
             .then(res => res.text())
@@ -1022,7 +1021,7 @@ async function loadDefaultSettings() {
  * Loads or resets default settings, 
  * @param {boolean} preserveCurrentInfo
  */
-function newBlankScript(preserveCurrentInfo = false) {
+function newBlankScript(preserveCurrentInfo = false) { // globals
     if (!preserveCurrentInfo) {
         loadDefaultSettings().catch(e => console.warn(e));
         loadBlankXMLDoc().catch(e => console.warn(e))
@@ -1045,6 +1044,88 @@ function newBlankScript(preserveCurrentInfo = false) {
     editingTitlePage = false;
 }
 
+/** @typedef {Object.<string,CharacterTrait[]} CharacterTraits*/
+
+/**
+ * @typedef {Object} CharacterTrait
+ * @property {string} name
+ * @property {string} type
+ * @property {string} traitID
+ * @property {string} valueID
+ * @property {string} value
+ */
+/**
+ * @param {Document} doc
+ * @returns {CharacterTraits}
+ */
+function getCharacterTraits(doc) {
+    const TraitData = doc.getElementsByTagName("CharacterTraitData")[0]
+    const Traits = TraitData.getElementsByTagName("Traits")[0]
+    const TraitHolders = TraitData.getElementsByTagName("Holders")[0]
+    /** @type {CharacterTraits} */
+    let res = {};
+    for (const Holder of TraitHolders.children) {
+        const HolderName = Holder.getAttribute("Name")
+        const HolderIDs = Array.from(Holder.getElementsByTagName("Attribute")).map(el => el.getAttribute("ID"))
+        /** @type {CharacterTrait[]} */
+        let newTraits = []
+        for (const Trait of Traits.children) {
+            const MaybeAttribute = Array.from(Trait.getElementsByTagName("Attribute")).find(el => HolderIDs.includes(el.getAttribute("ID")))
+            if (MaybeAttribute) {
+                newTraits.push({
+                    name: Trait.getAttribute("Name"),
+                    traitID: Trait.getAttribute("ID"),
+                    type: Trait.getAttribute("Type"),
+                    value: MaybeAttribute.textContent,
+                    valueID: MaybeAttribute.getAttribute("ID")
+                })
+            }
+        }
+        res[HolderName] = newTraits;
+    }
+    return res;
+}
+/**
+ * @param {Document} doc
+ * @param {CharacterTraits} traits 
+ * @returns {Element}
+ */
+function characterTraitsToXML(doc, traits) {
+    const TraitDataEl = doc.createElement("CharacterTraitData")
+    const TraitsEl = doc.createElement("Traits")
+    const HoldersEl = doc.createElement("Holders")
+    /** @type {Object.<string, Element>} */
+    let traitMemo = {};
+    for (const [HolderName, Traits] of Object.entries(traits)) {
+        const NewHolderEl = doc.createElement("Holder")
+        NewHolderEl.setAttribute("Name", HolderName)
+        NewHolderEl.appendChild(doc.createElement("Attributes"))
+        for (const Trait of Traits) {
+            const NewHolderAttributeEl = doc.createElement("Attribute")
+            NewHolderAttributeEl.setAttribute("ID", Trait.valueID)
+            NewHolderEl.firstChild.appendChild(NewHolderAttributeEl)
+
+            const NewAttributeEl = doc.createElement("Attribute")
+            NewAttributeEl.setAttribute("ID", Trait.valueID)
+            NewAttributeEl.textContent = Trait.value
+            if (!traitMemo[Trait.name]) {
+                const NewTrait = doc.createElement("Trait")
+                NewTrait.setAttribute("ID", Trait.traitID)
+                NewTrait.setAttribute("Name", Trait.name)
+                NewTrait.setAttribute("Type", Trait.type)
+                NewTrait.appendChild(doc.createElement("Attributes"))
+                traitMemo[Trait.name] = NewTrait
+            }
+            traitMemo[Trait.name].firstChild.appendChild(NewAttributeEl)
+        }
+        HoldersEl.appendChild(NewHolderEl)
+    }
+    TraitsEl.append(...Object.values(traitMemo))
+    TraitDataEl.appendChild(TraitsEl)
+    TraitDataEl.appendChild(HoldersEl)
+    return TraitDataEl
+}
+
 /**
  * @param {Document} doc 
  * @returns {string[]}
@@ -1058,12 +1139,10 @@ function getCharacterInfo(doc) {
     return res
 }
 
-
-
 /**
  * @param {string} str 
  */
-function addToCharacterSet(str) {
+function addToCharacterSet(str) { // globals
     if (!str) return;
     if (EXTENSION_REGEX.test(str)) str = str.substring(0, str.lastIndexOf('(')).trim();
     str = str.charAt(0).toUpperCase() + str.substring(1)
@@ -1078,7 +1157,7 @@ function getElementCoords(el, font) {
     const elStyles = window.getComputedStyle(el)
     let xVal = el.offsetLeft;
     if ((el.tagName === "TITLETEXT" || el.tagName === "ENDOFACT" || el.tagName === "NEWACT") && el.textContent) {
-        const width = font.widthOfTextAtSize(el.textContent, 16);
+        const width = font.widthOfTextAtSize(el.textContent, DEFAULT_FONT_SIZE_PIXELS);
         if (elStyles.textAlign === "center") {
             xVal = (DEFAULT_PAGE_WIDTH_INCHES * PIXELS_PER_INCH / 2 - width / 2)
         }
@@ -1179,7 +1258,7 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             pdfPage.drawText(`${i + 1}.`, {
                 x: LetterPageWidth - POINTS_PER_INCH, //1in from right
                 y: LetterPageHeight - 0.5 * POINTS_PER_INCH, //.5in from top
-                size: 12,
+                size: DEFAULT_FONT_SIZE_POINTS,
                 font: fonts.regular,
                 color: rgb(0, 0, 0),
             });
@@ -1188,7 +1267,7 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             if (element.tagName === "CHARACTER") lastUsedCharacter = element.textContent
             const elementStyles = window.getComputedStyle(element);
             const initialFont = resolveFont(fonts, elementStyles);
-            const fontSize = 12 | pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
+            const fontSize = DEFAULT_FONT_SIZE_POINTS | pxToPt(parseInt(elementStyles.fontSize.substring(0, elementStyles.fontSize.lastIndexOf('p'))));
             const elCoords = getElementCoords(element, initialFont)
             elCoords.x = pxToPt(element.tagName === "TRANSITION"
                 ? (DEFAULT_PAGE_WIDTH_INCHES + DEFAULT_LEFT_MARGIN_INCHES) * POINTS_PER_INCH - initialFont.widthOfTextAtSize(element.textContent, fontSize)
@@ -1285,7 +1364,7 @@ function resolveFont(fonts, element) {
 /**
  * @param {Event} e 
  */
-async function downloadPDF(e) {
+async function downloadPDF(e) { // globals
     e.preventDefault()
     const LetterPageWidth = DEFAULT_PAGE_WIDTH_INCHES * POINTS_PER_INCH;
     const LetterPageHeight = DEFAULT_PAGE_HEIGHT_INCHES * POINTS_PER_INCH;
@@ -1331,13 +1410,13 @@ function handleOnClick(e) {
     switchLastFocusedElement(el)
 }
 
-function hexToRgb(hex) {
-    const clean = hex.replace('#', '');
-    const r = parseInt(clean.substring(0, 2), 16) / 255;
-    const g = parseInt(clean.substring(2, 4), 16) / 255;
-    const b = parseInt(clean.substring(4, 6), 16) / 255;
-    return rgb(r, g, b);
-}
+// function hexToRgb(hex) {
+//     const clean = hex.replace('#', '');
+//     const r = parseInt(clean.substring(0, 2), 16) / 255;
+//     const g = parseInt(clean.substring(2, 4), 16) / 255;
+//     const b = parseInt(clean.substring(4, 6), 16) / 255;
+//     return rgb(r, g, b);
+// }
 
 function triggerDownload(bytes, filename) {
     const blob = new Blob([bytes], { type: 'application/pdf' });
@@ -1354,7 +1433,7 @@ function triggerDownload(bytes, filename) {
  * 
  * @param {Event} e 
  */
-function toggleEditTitlePage(e) {
+function toggleEditTitlePage(e) { // globals
     e.preventDefault();
     if (editingTitlePage) {
         titlePageOuterHTML = ScriptWrapper.innerHTML
@@ -1367,7 +1446,7 @@ function toggleEditTitlePage(e) {
     }
     editingTitlePage = !editingTitlePage;
 }
-function removeUndoIDs() {
+function removeUndoIDs() { // globals
     for (let page of ScriptWrapper.children) {
         for (let el of page.children) {
             el.removeAttribute("id")
@@ -1377,7 +1456,7 @@ function removeUndoIDs() {
 /**
  * @param {Event} e 
  */
-function handleOnLoad(e) {
+function handleOnLoad(e) { // globals
     document.getElementsByClassName("option-menu")[0].showPopover()
 
     let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage] = tryGetLastScreenplay()
@@ -1407,12 +1486,55 @@ function handleOnLoad(e) {
         newBlankScript();
     }
 }
+/**
+ * 
+ * @param {KeyboardEvent} e 
+ */
+function handlePageTracker(e) {
+    if (e.key !== "Enter") return;
+    if (isNaN(parseInt(e.target.value))) return
+    e.preventDefault();
+    if (e.target.value <= 0) e.target.value = 1;
+    else if (e.target.value > ScriptWrapper.childElementCount) e.target.value = ScriptWrapper.childElementCount;
+    setCursorPosition(ScriptWrapper.children[e.target.value - 1].firstChild, 0)
+    restoreScrollPosition({ top: (e.target.value - 1) * (DEFAULT_PAGE_HEIGHT_INCHES * PIXELS_PER_INCH + DEFAULT_FONT_SIZE_PIXELS) + 1, left: 0 }, ScriptWrapper)
+}
+
+/**
+ * 
+ * @param {Event} e 
+ */
+function handleElementPicker(e) {
+    if (editingTitlePage) return
+    const [el, currentPage] = getScriptElementAndCurrentPage(lastFocusedElement)
+    changeElementTo(el, e.target.textContent.replace(/\s/g, "").toLowerCase(), currentPage)
+}
+/**
+ * @param {Event} e 
+ */
+function handleVisibilityChange(e) {
+    saveCurrentScreenplay(
+        e,
+        originalXML,
+        ScriptWrapper,
+        editingTitlePage,
+        titlePageOuterHTML,
+        scriptInnerHTML,
+        scriptSettings,
+        FileNameInput,
+        characterSet,
+        lastFocusedElement
+    )
+}
+
+function handleMenuButtons(e) {
+    for (let optMenu of document.getElementsByClassName("option-menu")) {
+        optMenu.hidePopover()
+    }
+}
+
 for (let optMenuBtn of document.getElementsByClassName("option-menu-button")) {
-    optMenuBtn.addEventListener("click", (e) => {
-        for (let optMenu of document.getElementsByClassName("option-menu")) {
-            optMenu.hidePopover()
-        }
-    })
+    optMenuBtn.addEventListener("click", handleMenuButtons)
 }
 window.addEventListener("load", handleOnLoad)
 document.getElementById("script-upload").addEventListener("change", handleFileInput)
@@ -1430,27 +1552,15 @@ TitlePageButton.addEventListener("click", toggleEditTitlePage)
 document.getElementById("download-fdx").addEventListener("click", downloadFDX)
 document.getElementById("download-pdf").addEventListener('click', downloadPDF)
 document.getElementById("new-blank").addEventListener("click", (e) => { newBlankScript() })
-window.addEventListener("visibilitychange", (e) => saveCurrentScreenplay(e, originalXML, ScriptWrapper, editingTitlePage, titlePageOuterHTML, scriptInnerHTML, scriptSettings, FileNameInput, characterSet, lastFocusedElement))
+window.addEventListener("visibilitychange", handleVisibilityChange)
 document.getElementById("menu-button-open").addEventListener("click", (e) => document.getElementById("script-upload").click())
 document.getElementById("undo-button").addEventListener("click", (e) => undoStack.undo(editingTitlePage, ScriptWrapper))
 document.getElementById("redo-button").addEventListener("click", (e) => undoStack.redo(editingTitlePage, ScriptWrapper))
-document.getElementById("element-types").addEventListener("click", (e) => {
-    if (editingTitlePage) return
-    const [el, currentPage] = getScriptElementAndCurrentPage(lastFocusedElement)
-    changeElementTo(el, e.target.textContent.replace(/\s/g, "").toLowerCase(), currentPage)
-})
+document.getElementById("element-types").addEventListener("click", handleElementPicker)
 document.getElementById("copy-button").addEventListener("click", handleCopy)
 document.getElementById("cut-button").addEventListener("click", handleCut)
 document.getElementById("paste-button").addEventListener("click", handlePaste)
-CurrentPageTracker.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    if (isNaN(parseInt(e.target.value))) return
-    e.preventDefault();
-    if (e.target.value <= 0) e.target.value = 1;
-    else if (e.target.value > ScriptWrapper.childElementCount) e.target.value = ScriptWrapper.childElementCount;
-    setCursorPosition(ScriptWrapper.children[e.target.value - 1].firstChild, 0)
-    restoreScrollPosition({ top: (e.target.value - 1) * (11 * 96 + 16) + 1, left: 0 }, ScriptWrapper)
-})
+CurrentPageTracker.addEventListener("keydown", handlePageTracker)
 
 
 /**
@@ -1470,6 +1580,10 @@ CurrentPageTracker.addEventListener("keydown", (e) => {
  *  @property {Ancestor[]} ancestors
  */
 
+/**
+ * @param {HTMLElement} element 
+ * @param {number} position 
+ */
 function setCursorPosition(element, position) {
     element.focus();
 

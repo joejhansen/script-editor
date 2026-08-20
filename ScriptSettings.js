@@ -44,6 +44,8 @@ export const DEFAULT_TOP_MARGIN_INCHES = 1
 export const DEFAULT_RIGHT_MARGIN_INCHES = 1
 export const DEFAULT_BOTTOM_MARGIN_INCHES = 1
 export const DEFAULT_LEFT_MARGIN_INCHES = 1.5
+export const DEFAULT_FONT_SIZE_POINTS = 12;
+export const DEFAULT_FONT_SIZE_PIXELS = 16;
 export const PIXELS_PER_INCH = 96
 export const POINTS_PER_INCH = 72;
 export const VALID_FDX_TYPES = [
@@ -98,7 +100,7 @@ export const DEFAULT_EXTENSIONS = new Set([
     "(pre-lap)",
 ]);
 export const SCENE_INTRO_REGEX = /^(\w{1,3}|i\/{1,2})(?!.)/i
-export const DEFAULT_SCENE_INTROS = new Set(["INT.", "EXT.", "I/E"]);
+export const DEFAULT_SCENE_INTROS = new Set(["INT.", "EXT.", "I/E."]);
 export const TIME_OF_DAY_REGEX = /-\s(?:\w* *)+$/i
 export const DEFAULT_TIMES_OF_DAY = new Set([
     "DAY",

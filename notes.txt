@@ -8,7 +8,7 @@ ABANDONED: pick a pdf package because it seems like making one myself would be a
     PSYCHE, we're doing HTML -> LaTeX -> PDF
 DONE: pick a copyleft license because fuck paying, logins, analytics, any other bullshit just to make art
 TODO: make this a PWA for download and put on gh pages
-TODO: Figure out a unique name because "Lib(re)Script" is either already taken and/or refers to scripting languages
+DONE: Figure out a unique name because "Lib(re)Script" is either already taken and/or refers to scripting languages
     Lib(re), Free, Open, True, Off(Script)
     Script, Screen(play), Tele(play), Play
     Orson, Alfred, Charlie, Cohen, Lana, Lilly, Ward, Beatts
@@ -19,7 +19,7 @@ TODO: Figure out a unique name because "Lib(re)Script" is either already taken a
 DONE: Pagination
 
 6/24/26
-TODO: Copy/paste
+DONE: Copy/paste
 DONE: better undo/redo tree
 
 6/25/26
@@ -44,7 +44,7 @@ DONE: Auto-completes for character names, headings (int/ext, times of day), tran
 
 7/16/26
 DONE: inline text styling (italics,bold,underline)
-TODO: have those inline styles appear in the downloaded fdx
+DONE: have those inline styles appear in the downloaded fdx
 
 7/17/16
 Feature checklist
@@ -90,3 +90,8 @@ DONE-ISH: Add a better header menu
         PRODUCTION: character/scene/location lists and statistics, register with wga, budgeting
     always in view: current element type, file name, current page and page count, title page toggle
 TODO: Add dual dialogue
+
+8/20/26
+TODO: keep script notes
+    <SceneProperties> > <SceneArcBeats> > <CharacterArcBeat> > <Paragraph> > <Text>
+    <ScriptNote> > <Paragraph> > <Text>
