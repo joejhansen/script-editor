@@ -1,5 +1,39 @@
 import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_MARGIN_INCHES, PIXELS_PER_INCH } from "./ScriptSettings.js";
 
+/**
+ * @callback KeepWithNextPredicate
+ * @param {HTMLElement} element
+ * @returns {boolean} True if this element should never be the last one on a page.
+ */
+
+/**
+ * @typedef {Object} PaginationOptions
+ * @property {string} [pageClassName='page']
+ * @property {number} [pageHeightIn=11]
+ * @property {string} [characterTagName='character'] Tag name used for character cues.
+ *   Also reused (with different text) to render the generated (MORE) and
+ *   (CONT'D) lines, so they automatically pick up your existing CSS.
+ * @property {string} [dialogueTagName='dialogue'] Tag name used for dialogue blocks.
+ *   Only elements with this tag are eligible for mid-element splitting.
+ * @property {string} [moreText='(MORE)']
+ * @property {string} [contdText="(CONT'D)"]
+ * @property {number} [minWordsBeforeSplit=4] Minimum words that must remain on the
+ *   first half of a split. Prevents splitting after just one or two words.
+ * @property {number} [minWordsAfterSplit=4] Minimum words required on the
+ *   continuation half. Prevents leaving a lone word dangling as a "widow"
+ *   at the top of the next page.
+ * @property {KeepWithNextPredicate} [isKeepWithNext]
+ */
+
+/**
+ * 
+ * @param {HTMLElement[]} elements 
+ * @param {HTMLElement} currentElement 
+ * @param {number} lastCursorPosition 
+ * @param {PaginationOptions} options 
+ * @returns {[HTMLElement[], HTMLElement, number]}
+ */
+
 export function paginateScreenplay(elements, currentElement = null, lastCursorPosition = -1, options = {
     pageClassName: 'page',
     pageHeightIn: DEFAULT_PAGE_HEIGHT_INCHES - DEFAULT_BOTTOM_MARGIN_INCHES - DEFAULT_TOP_MARGIN_INCHES,
@@ -123,30 +157,7 @@ export function paginateScreenplay(elements, currentElement = null, lastCursorPo
         return page;
     }), currentElement, lastCursorPosition];
 }
-/**
- * @callback KeepWithNextPredicate
- * @param {HTMLElement} element
- * @returns {boolean} True if this element should never be the last one on a page.
- */
 
-/**
- * @typedef {Object} PaginationOptions
- * @property {string} [pageClassName='page']
- * @property {number} [pageHeightIn=11]
- * @property {string} [characterTagName='character'] Tag name used for character cues.
- *   Also reused (with different text) to render the generated (MORE) and
- *   (CONT'D) lines, so they automatically pick up your existing CSS.
- * @property {string} [dialogueTagName='dialogue'] Tag name used for dialogue blocks.
- *   Only elements with this tag are eligible for mid-element splitting.
- * @property {string} [moreText='(MORE)']
- * @property {string} [contdText="(CONT'D)"]
- * @property {number} [minWordsBeforeSplit=4] Minimum words that must remain on the
- *   first half of a split. Prevents splitting after just one or two words.
- * @property {number} [minWordsAfterSplit=4] Minimum words required on the
- *   continuation half. Prevents leaving a lone word dangling as a "widow"
- *   at the top of the next page.
- * @property {KeepWithNextPredicate} [isKeepWithNext]
- */
 
 /**
  * @param {PaginationOptions} options 
@@ -225,7 +236,7 @@ function measureHeights(elements, options, maxPageHeightPx) {
     clones.forEach(c => frag.appendChild(c));
     measurePage.appendChild(frag);           // one write
     let currentPageHeight = 0;
-    const heights = clones.map((c) => { 
+    const heights = clones.map((c) => {
         let elementHeight = c.getBoundingClientRect().height
         currentPageHeight += elementHeight
         if (currentPageHeight > maxPageHeightPx) {

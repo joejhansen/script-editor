@@ -38,6 +38,27 @@
  * @property {ElementSetting} endofact
  */
 
+/**
+ * Either put these as position: absolute with rest of document or keep them to the side so as not to fuck with pagination
+ * Show up as a editable tooltip.
+ * would make navigator simpler with seperate list
+ * but i wouldn't have to fuck with IDs if i just put it in flow
+ * @typedef {Object} ScriptNote
+ * @property {string} Color
+ * @property {string} DateModified
+ * @property {string} DateTime
+ * @property {string} Name
+ * @property {string} Type
+ */
+
+/**
+ * @typedef {Object} SceneProperties
+ * @property {string} Length
+ * @property {string} Page
+ * @property {string} Title
+ */
+
+
 export const DEFAULT_PAGE_WIDTH_INCHES = 8.5
 export const DEFAULT_PAGE_HEIGHT_INCHES = 11
 export const DEFAULT_TOP_MARGIN_INCHES = 1

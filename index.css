@@ -457,6 +457,17 @@ sequence {
     padding-top: 32px;
 }
 
+scriptnote, sceneproperties {
+    position: absolute;
+    right: 0;
+    display: none;
+
+    &:hover,
+    &.active {
+        display: block;
+    }
+}
+
 summary {
     font-family: Arial, Helvetica, sans-serif;
 }
