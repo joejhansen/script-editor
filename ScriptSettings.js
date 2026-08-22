@@ -154,6 +154,7 @@ export const DEFAULT_TRANSITIONS = new Set([
     "TIME CUT:",
 ]);
 export const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
+export const NOTE_ELEMENTS = ["SCRIPTNOTE", "SCENEPROPERTIES"]
 
 /**
  * @param {Document} doc 

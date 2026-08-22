@@ -5,11 +5,10 @@ import {
     DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS,
     DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH,
     POINTS_PER_INCH, SCENE_INTRO_REGEX, TIME_OF_DAY_REGEX, VALID_FDX_TYPES,
-    DEFAULT_FONT_SIZE_PIXELS,
-    DEFAULT_FONT_SIZE_POINTS,
+    DEFAULT_FONT_SIZE_PIXELS, DEFAULT_FONT_SIZE_POINTS, NOTE_ELEMENTS
 } from "./ScriptSettings.js";
 import { UndoStack } from "./UndoStack.js";
-import { XMLtoHTML, parseXMLFromFile, parseXMLString } from "./ScriptConversion.js";
+import { XMLtoHTML, htmlToSceneProperties, htmlToScriptNote, parseXMLFromFile, parseXMLString } from "./ScriptConversion.js";
 import { saveScrollPosition, restoreScrollPosition, getCursorPosition } from "./UX.js";
 import { paginateScreenplay } from "./Pagination.js";
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js";
@@ -820,11 +819,23 @@ function tagToFDXType(tagStr) {
     return VALID_FDX_TYPES.at(HTML_TAG_NAMES.indexOf(tagStr.toLowerCase()))
 }
 
+
+
 /**
  * @param {Document} doc
  * @param {HTMLElement} el 
+ * @param {HTMLElement | null} scriptNote
  */
-function HTMLtoFDX(doc, el) { // globals
+function HTMLtoFDX(doc, el, scriptNote = null) { // globals
+    /** @type {Element|null} */
+    let maybeScriptNote = null;
+    if (scriptNote) {
+        if (scriptNote.tagName === "SCENEPROPERTIES") {
+            maybeScriptNote = htmlToSceneProperties(scriptNote, doc)
+        } else if (scriptNote.tagName === "SCRIPTNOTE") {
+            maybeScriptNote = htmlToScriptNote(scriptNote, doc)
+        }
+    }
     let paraEl = doc.createElement("Paragraph")
     const htmlTag = el.tagName.toLowerCase();
     paraEl.setAttribute("Type", tagToFDXType(htmlTag))
@@ -877,7 +888,12 @@ function HTMLtoFDX(doc, el) { // globals
             newTextEls.push(textEl)
         }
     }
+    if (maybeScriptNote) {
+        doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('      '))
+        paraEl.appendChild(maybeScriptNote)
+        doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('\n'))
 
+    }
     for (let newEl of newTextEls) {
         doc.getElementsByTagName("Content")[0].appendChild(doc.createTextNode('      '))
         paraEl.appendChild(newEl)
@@ -945,8 +961,18 @@ function downloadFDX(event) { // globals
 
         let newContentDoc = parser.parseFromString(`<Content>\n</Content>`, "application/xml")
         const [allElements, _, __] = getAllScreenplayElements();
-        for (const el of allElements) {
-            HTMLtoFDX(newContentDoc, el)
+        let scriptNoteAdded = false;
+        for (const [i, el] of allElements.entries()) {
+            if (scriptNoteAdded) {
+                scriptNoteAdded = false;
+                continue;
+            }
+            if (NOTE_ELEMENTS.includes(el.tagName) && allElements[i + 1]) {
+                HTMLtoFDX(newContentDoc, allElements[i + 1], el);
+                scriptNoteAdded = true;
+            } else {
+                HTMLtoFDX(newContentDoc, el)
+            }
         }
         newContentDoc.getElementsByTagName("Content")[0].appendChild(newContentDoc.createTextNode('  '))
 
@@ -1239,7 +1265,6 @@ function getTextNodeStyles(textNode) {
     }
     return res;
 }
-
 /**
  * @param {HTMLElement[]} allPages 
  * @param {*} pdfDoc 
@@ -1264,6 +1289,7 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             });
         }
         for (const element of pageData.children) {
+            if (NOTE_ELEMENTS.includes(element.tagName)) continue
             if (element.tagName === "CHARACTER") lastUsedCharacter = element.textContent
             const elementStyles = window.getComputedStyle(element);
             const initialFont = resolveFont(fonts, elementStyles);

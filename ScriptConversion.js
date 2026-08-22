@@ -13,26 +13,71 @@ function scriptNoteToHTML(el) {
     return NewScriptNote;
 }
 /**
+ * @param {HTMLElement} note 
+ * @param {Document} doc
+ * @returns {Element}
+ */
+export function htmlToScriptNote(el, doc) {
+    const NewScriptNote = doc.createElement("ScriptNote");
+    const NewParagraph = doc.createElement("Paragraph");
+    const NewText = doc.createElement("Text")
+    NewScriptNote.setAttribute("Author", el.getAttribute("Author"));
+    NewScriptNote.setAttribute("Color", el.getAttribute("Color"));
+    NewScriptNote.setAttribute("DateModified", el.getAttribute("DateModified"));
+    NewScriptNote.setAttribute("DateTime", el.getAttribute("DateTime"));
+    NewScriptNote.setAttribute("Name", el.getAttribute("Name"));
+    NewScriptNote.setAttribute("Type", el.getAttribute("Type"));
+    NewText.textContent = el.textContent;
+    NewParagraph.appendChild(NewText)
+    NewScriptNote.appendChild(NewParagraph)
+    return NewScriptNote;
+}
+
+/**
  * 
- * @param {Element} el 
+ * @param {Element} note 
  * @returns {HTMLElement}
  */
-function scenePropertiesToHTML(el) {
+function scenePropertiesToHTML(note) {
     const NewSceneProperties = document.createElement("SceneProperties")
     // length and page number have to updated programatically
-    NewSceneProperties.setAttribute("Length", el.getAttribute("Length"));
-    NewSceneProperties.setAttribute("Page", el.getAttribute("Page"));
-    NewSceneProperties.setAttribute("Title", el.getAttribute("Title"));
-    const CharacterArcBeats = el.getElementsByTagName("CharacterArcBeat")
+    NewSceneProperties.setAttribute("Length", note.getAttribute("Length"));
+    NewSceneProperties.setAttribute("Page", note.getAttribute("Page"));
+    NewSceneProperties.setAttribute("Title", note.getAttribute("Title"));
+    const CharacterArcBeats = note.getElementsByTagName("CharacterArcBeat")
     for (const CharArcBeat of CharacterArcBeats) {
-        const NewCharArch = document.createElement("characterarcbeat")
-        NewCharArch.setAttribute("Name", CharArcBeat.getAttribute("Name"))
-        NewCharArch.textContent = CharArcBeat.getElementsByTagName("Text")[0].textContent;
-        NewSceneProperties.appendChild(NewCharArch)
+        const NewCharArc = document.createElement("characterarcbeat")
+        NewCharArc.setAttribute("Name", CharArcBeat.getAttribute("Name"))
+        NewCharArc.textContent = CharArcBeat.getElementsByTagName("Text")[0].textContent;
+        NewSceneProperties.appendChild(NewCharArc)
     }
     return NewSceneProperties;
 }
 
+/**
+ * @param {HTMLElement} note 
+ * @param {Document} doc
+ * @returns {Element}
+ */
+export function htmlToSceneProperties(note, doc) {
+    const NewSceneProperties = doc.createElement("SceneProperties");
+    NewSceneProperties.setAttribute("Length", note.getAttribute("Length"));
+    NewSceneProperties.setAttribute("Page", note.getAttribute("Page"));
+    NewSceneProperties.setAttribute("Title", note.getAttribute("Title"));
+    const NewSceneArcBeats = doc.createElement("SceneArcBeats")
+    for (const CharArc of note.children) {
+        const NewCharArc = doc.createElement("CharacterArcBeat")
+        const NewParagraph = doc.createElement("Paragraph")
+        const NewText = doc.createElement("Text")
+        NewCharArc.setAttribute("Name", CharArc.getAttribute("Name"))
+        NewText.textContent = CharArc.textContent;
+        NewParagraph.appendChild(NewText)
+        NewCharArc.appendChild(NewParagraph)
+        NewSceneArcBeats.appendChild(NewCharArc)
+    }
+    NewSceneProperties.appendChild(NewSceneArcBeats)
+    return NewSceneProperties
+}
 /**
  * @param {Element} el 
  * @returns {HTMLElement[]}
@@ -76,8 +121,9 @@ export function XMLtoHTML(doc) {
     let res = []
     let contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
     for (let el of contentEls) {
-        res.push(EltoHTML(el))
+        res.push(...EltoHTML(el))
     }
+    console.log(res)
     return res;
 }
 
