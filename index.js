@@ -5,12 +5,13 @@ import {
     DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS,
     DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH,
     POINTS_PER_INCH, SCENE_INTRO_REGEX, TIME_OF_DAY_REGEX, VALID_FDX_TYPES,
-    DEFAULT_FONT_SIZE_PIXELS, DEFAULT_FONT_SIZE_POINTS, NOTE_ELEMENTS
+    DEFAULT_FONT_SIZE_PIXELS, DEFAULT_FONT_SIZE_POINTS, NOTE_ELEMENTS,
+    getChildElementIndex
 } from "./ScriptSettings.js";
 import { UndoStack } from "./UndoStack.js";
-import { XMLtoHTML, htmlToSceneProperties, htmlToScriptNote, parseXMLFromFile, parseXMLString } from "./ScriptConversion.js";
+import { XMLtoHTML, htmlToSceneProperties, htmlToScriptNote, parseXMLFromFile, parseXMLString, handleOpenNote } from "./ScriptConversion.js";
 import { saveScrollPosition, restoreScrollPosition, getCursorPosition } from "./UX.js";
-import { paginateScreenplay } from "./Pagination.js";
+import { getSceneLength, numAsClosestFraction, paginateScreenplay } from "./Pagination.js";
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js";
 
 const { PDFDocument, StandardFonts, rgb } = PDFLib
@@ -27,6 +28,8 @@ const ScriptWrapper = document.getElementById("script-main");
 const FileNameInput = document.getElementById("file-name")
 const TitlePageButton = document.getElementById("title-page-toggle")
 const CurrentPageTracker = document.getElementById("current-page")
+const ScenePropertiesEl = document.getElementsByTagName("sceneproperties")[0]
+const ScriptNotesEl = document.getElementsByTagName("scriptnotes")[0]
 
 /** @type {import("./ScriptSettings.js").ElementSettings | null} */
 let defaultScriptSettings = null
@@ -128,6 +131,8 @@ function loadTitlePage(doc) {
  */
 function handleFileInput(event) { // globals
     event.preventDefault()
+    emptyElement(document.querySelector("scriptnotes"))
+    emptyElement(document.querySelector("sceneproperties"))
     /** @type {File} */
     const file = event.target.files?.[0]
     if (!file) console.warn("DEBUG:\t handleFileInput -> Something went wrong loading file")
@@ -213,6 +218,19 @@ function handleEnterKey(event, el, currentPage) { // globals
     const selection = window.getSelection()
     const cursorRange = selection.getRangeAt(0)
 
+    if (cursorRange.startOffset === 0) {
+        let newElement = el.cloneNode(0);
+        newElement.innerHTML = '<br>';
+        currentPage.insertBefore(newElement, el)
+        if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT_INCHES) reformatScreenplay(el, currentPage, ScriptWrapper)
+        CurrentPageTracker.value = getChildElementIndex(newElement.parentElement, ScriptWrapper) + 1
+        if (el.dataset.suggestion) el.dataset.suggestion = "";
+        if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el)
+        else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.innerHTML = el.innerHTML.toUpperCase();
+        setCursorPosition(el, 0)
+        return;
+
+    }
     const tailRange = document.createRange()
     tailRange.setStart(cursorRange.startContainer, cursorRange.startOffset)
 
@@ -248,7 +266,7 @@ function handleEnterKey(event, el, currentPage) { // globals
 
     if (el.dataset.suggestion) el.dataset.suggestion = "";
     if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el)
-    else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.textContent = el.textContent.toUpperCase();
+    else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.innerHTML = el.innerHTML.toUpperCase();
 
 }
 
@@ -536,17 +554,7 @@ function handleDeletion(event, el, currentPage) { // globals
     }
 }
 
-/**
- * @param {HTMLElement} child 
- * @param {HTMLElement} parent 
- * @returns {number}
- */
-function getChildElementIndex(child, parent) {
-    for (let i = 0; i < parent.childElementCount; i++) {
-        if (parent.children[i] === child) return i;
-    }
-    return -1;
-}
+
 
 /**
  * @param {HTMLElement} currentElement 
@@ -830,7 +838,7 @@ function HTMLtoFDX(doc, el, scriptNote = null) { // globals
     /** @type {Element|null} */
     let maybeScriptNote = null;
     if (scriptNote) {
-        if (scriptNote.tagName === "SCENEPROPERTIES") {
+        if (scriptNote.tagName === "SCENEPROPERTY") {
             maybeScriptNote = htmlToSceneProperties(scriptNote, doc)
         } else if (scriptNote.tagName === "SCRIPTNOTE") {
             maybeScriptNote = htmlToScriptNote(scriptNote, doc)
@@ -843,7 +851,7 @@ function HTMLtoFDX(doc, el, scriptNote = null) { // globals
     for (let [i, subNode] of el.childNodes.entries()) {
         let textEl = doc.createElement("Text")
         if (subNode.nodeType === 1) { // a span
-            textEl.setAttribute("Style", [...subNode.classList].map(str => str.at(0).toUpperCase() + str.substring(1)).join('+'))
+            textEl.setAttribute("Style", [...subNode.classList].map(str => str.at(0).toUpperCase() + str.substring(1).toLowerCase()).join('+'))
             for (let attr of ["AdornmentStyle", "Background", "Color", "Font", "RevisionID", "Size"]) {
                 textEl.setAttribute(attr, scriptSettings[htmlTag][attr])
             }
@@ -963,13 +971,8 @@ function downloadFDX(event) { // globals
         const [allElements, _, __] = getAllScreenplayElements();
         let scriptNoteAdded = false;
         for (const [i, el] of allElements.entries()) {
-            if (scriptNoteAdded) {
-                scriptNoteAdded = false;
-                continue;
-            }
-            if (NOTE_ELEMENTS.includes(el.tagName) && allElements[i + 1]) {
-                HTMLtoFDX(newContentDoc, allElements[i + 1], el);
-                scriptNoteAdded = true;
+            if (el.dataset.noteID) {
+                HTMLtoFDX(newContentDoc, el, document.getElementById(el.dataset.noteID))
             } else {
                 HTMLtoFDX(newContentDoc, el)
             }
@@ -1055,9 +1058,9 @@ function newBlankScript(preserveCurrentInfo = false) { // globals
         undoStack = new UndoStack();
         FileNameInput.value = "New Script";
     }
-    while (ScriptWrapper.firstChild) {
-        ScriptWrapper.removeChild(ScriptWrapper.firstChild)
-    }
+    emptyElement(ScriptWrapper)
+    emptyElement(document.querySelector("scriptnotes"))
+    emptyElement(document.querySelector("sceneproperties"))
     let newSceneHeading = document.createElement("sceneheading")
     newSceneHeading.appendChild(document.createElement("br"))
     let newPage = document.createElement("div")
@@ -1306,7 +1309,6 @@ function addPagesToDoc(allPages, pdfDoc, LetterPageWidth, LetterPageHeight, font
             const color = rgb(0, 0, 0);
             for (const textNode of textNodes) { // so fucking close
                 const styleMask = getTextNodeStyles(textNode)
-                if (element.tagName === "NEWACT") console.log(styleMask)
                 let thisFont = initialFont
                 if ((styleMask & ITALICS_MASK) !== 0 && (styleMask & BOLD_MASK) !== 0) { thisFont = fonts.boldItalic; }
                 else if ((styleMask & ITALICS_MASK) !== 0) { thisFont = fonts.italic; }
@@ -1485,9 +1487,11 @@ function removeUndoIDs() { // globals
 function handleOnLoad(e) { // globals
     document.getElementsByClassName("option-menu")[0].showPopover()
 
-    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage] = tryGetLastScreenplay()
+    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage, lastScriptNotes, lastSceneProperties] = tryGetLastScreenplay()
     if (ok) {
         ScriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
+        ScenePropertiesEl.innerHTML = lastSceneProperties;
+        ScriptNotesEl.innerHTML = lastScriptNotes
         titlePageOuterHTML = lastTitlePage
         if (lastSettings) scriptSettings = lastSettings
         else loadDefaultSettings();
@@ -1510,6 +1514,10 @@ function handleOnLoad(e) { // globals
         removeUndoIDs()
     } else {
         newBlankScript();
+    }
+    for (const Note of [...document.getElementsByTagName("scriptnote"), ...document.getElementsByTagName("sceneproperty")]) {
+        Note.querySelector("img").addEventListener("click", handleOpenNote)
+        Note.querySelector("content").classList.remove("active")
     }
 }
 /**
@@ -1549,7 +1557,9 @@ function handleVisibilityChange(e) {
         scriptSettings,
         FileNameInput,
         characterSet,
-        lastFocusedElement
+        lastFocusedElement,
+        ScriptNotesEl,
+        ScenePropertiesEl
     )
 }
 

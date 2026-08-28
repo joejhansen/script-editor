@@ -12,15 +12,12 @@
 <body>
     <main>
         <div id="patch-notes">
-            <p>v0.25 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
+            <p>v0.31 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
                     Feedback</a>
             </p>
             <p>New in this version</p>
             <ul>
-                <li>Page count and navigation at bottom of page</li>
-                <li>New Act and End of Act elements</li>
-                <li>No more selectable (MORE) and (CONT'D)s. This might mess up your screenplay upon reformat.</li>
-                <li>Undo/Redo stack no longer saves to localStorage in order to free up space</li>
+                <li>Script Notes and Scene Properties to/from FDX. Editing to come in the future.</li>
             </ul>
             <p>Known bugs</p>
             <ul>
@@ -243,6 +240,38 @@
                 <sceneheading><br></sceneheading>
             </div>
         </article>
+        <notes>
+            <scriptnotes>
+                <template>
+                    <scriptnote>
+                        <img src="img/material-icons/ink_pen_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt="">
+                        <content>
+                            <div class="note-type"></div>
+                            <div class="note-author"></div>
+                            <div class="note-color"></div>
+                            <div class="note-dateTime"></div>
+                            <div class="note-dateModified"></div>
+                            <div class="note-name"></div>
+                            <div class="note-type"></div>
+                            <div class="note-content"></div>
+                        </content>
+                    </scriptnote>
+                </template>
+            </scriptnotes>
+            <sceneproperties>
+                <template>
+                    <sceneproperty>
+                        <img src="img/material-icons/ink_pen_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt="">
+                        <content>
+                            <div class="scene-prop-length"></div>
+                            <div class="scene-prop-page"></div>
+                            <div class="scene-prop-title"></div>
+                            <div class="scene-prop-content"></div>
+                        </content>
+                    </sceneproperty>
+                </template>
+            </sceneproperties>
+        </notes>
         <div id="stats-bar">
             <div></div>
             <div>

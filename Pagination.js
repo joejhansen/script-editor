@@ -1,4 +1,4 @@
-import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_MARGIN_INCHES, PIXELS_PER_INCH } from "./ScriptSettings.js";
+import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_MARGIN_INCHES, PIXELS_PER_INCH, getChildElementIndex } from "./ScriptSettings.js";
 
 /**
  * @callback KeepWithNextPredicate
@@ -341,4 +341,39 @@ function measureOne(el, scratch) {
     const h = scratch.lastElementChild.getBoundingClientRect().height;
     scratch.removeChild(scratch.lastElementChild);
     return h;
+}
+
+/**
+ * @param {HTMLElement} el
+ * @param {HTMLElement} scriptWrapper
+ * @param {number}
+ */
+export function getSceneLength(el) {
+    let currentPage = el.parentElement
+    let currentEl = el.nextSibling
+    let currentScrollHeight = 0;
+    while (currentPage !== null) {
+        while (currentEl !== null) {
+            if (currentEl.tagName === "SCENEHEADING") break;
+            currentScrollHeight += currentEl.scrollHeight;
+            currentEl = currentEl.nextSibling
+        }
+        if (currentEl?.tagName === "SCENEHEADING") break;
+        currentPage = currentPage.nextSibling
+        currentEl = currentPage?.firstChild
+    }
+    const PageInnerHeightPixels = (DEFAULT_PAGE_HEIGHT_INCHES - DEFAULT_BOTTOM_MARGIN_INCHES - DEFAULT_TOP_MARGIN_INCHES) * PIXELS_PER_INCH
+    return (currentScrollHeight / PageInnerHeightPixels)
+}
+/**
+ * @param {number} num
+ * @param {number} denominator
+ * @returns {{"whole":number,"numerator":number,"denominator":number}} 
+ */
+export function numAsClosestFraction(num, denominator) {
+    return {
+        whole: Math.trunc(num),
+        numerator: Math.round((num - Math.trunc(num)) * denominator),
+        denominator: denominator
+    }
 }

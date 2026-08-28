@@ -1,19 +1,80 @@
+/** @typedef {`${string}-${string}-${string}-${string}-${string}`} UUIDString*/
+const ScriptNotesEL = document.getElementsByTagName("scriptnotes")[0]
+const ScriptNoteTemplate = ScriptNotesEL.getElementsByTagName("template")[0].content.querySelector("scriptnote")
+const ScenePropertiesEl = document.getElementsByTagName("sceneproperties")[0]
+const ScenePropertyTemplate = ScenePropertiesEl.getElementsByTagName("template")[0].content.querySelector("sceneproperty")
+/** @type {HTMLElement | null} */
+let lastNoteOpened = null;
 /**
- * @param {Element} el 
- * @returns {HTMLElement}
+ * @param {Event} e 
  */
-function scriptNoteToHTML(el) {
-    const NewScriptNote = document.createElement("scriptnote")
-    NewScriptNote.setAttribute("Color", el.getAttribute("Color"));
-    NewScriptNote.setAttribute("DateModified", el.getAttribute("DateModified"));
-    NewScriptNote.setAttribute("DateTime", el.getAttribute("DateTime"));
-    NewScriptNote.setAttribute("Name", el.getAttribute("Name"));
-    NewScriptNote.setAttribute("Type", el.getAttribute("Type"));
-    NewScriptNote.textContent = el.textContent;
-    return NewScriptNote;
+export function handleOpenNote(e) {
+    e.preventDefault();
+    e.stopPropagation()
+    /** @type {HTMLElement} */
+    const someEl = e.target.parentElement
+    if (someEl.querySelector("content").classList.toggle("active")) {
+        lastNoteOpened?.classList.toggle("active")
+        lastNoteOpened = someEl.querySelector("content");
+    } else {
+        lastNoteOpened = null;
+    }
 }
 /**
- * @param {HTMLElement} note 
+ * For some reason, FDX uses ISO 8601 dates but without any punctuation or the last character "Z"
+ * @param {string} str 
+ * @returns {string}
+ */
+function FDXDateToJSDate(str) {
+    return `${str.substring(0, 4)}-${str.substring(4, 6)}-${str.substring(6, 11)}:${str.substring(11, 13)}:${str.substring(13)}Z`
+}
+/**
+ * @param {string} str 
+ * @returns {string}
+ */
+function JSDateToFDXDate(str) {
+    let res = "";
+    try {
+        const NewDate = new Date(str)
+        res = NewDate.toISOString().replace(/[-:Z.]/g, "")
+    } catch (e) {
+        console.warn(e)
+    }
+    return res;
+}
+/**
+ * @param {Element} note 
+ * @returns {UUIDString}
+*/
+function scriptNoteToHTML(note) {
+
+    /**@type {HTMLElement} */
+    const NewScriptNote = document.importNode(ScriptNoteTemplate, true)
+    // const NewScriptNote = document.createElement("scriptnote")
+    for (const Attribute of ["Author", "Color", "DateModified", "DateTime", "Name", "Type"]) {
+        let thisAttribute = note.getAttribute(Attribute);
+        NewScriptNote.dataset[Attribute] = thisAttribute
+        if (Attribute === "DateModified" || Attribute === "DateTime") {
+            const NewDate = new Date(FDXDateToJSDate(thisAttribute));
+            thisAttribute = `${NewDate.toLocaleDateString()} ${NewDate.toLocaleTimeString()}`
+            NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute.substring(0, 4)} ${Attribute.substring(4)}: ${thisAttribute}`
+        } else if (thisAttribute){
+            NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${thisAttribute}`
+        }
+    }
+    NewScriptNote.getElementsByClassName("note-content")[0].textContent = `Note: ${note.textContent}`;
+    const NewUUID = window.crypto.randomUUID()
+    NewScriptNote.style.positionAnchor = "--" + NewUUID
+    NewScriptNote.style.top = `anchor(--${NewUUID} top)`
+    NewScriptNote.style.right = `anchor(--${NewUUID} right)`
+    NewScriptNote.querySelector("img").addEventListener("click", handleOpenNote)
+    NewScriptNote.dataset.noteID = NewUUID
+    NewScriptNote.id = NewUUID
+    ScriptNotesEL.appendChild(NewScriptNote)
+    return NewUUID;
+}
+/**
+ * @param {HTMLElement} el 
  * @param {Document} doc
  * @returns {Element}
  */
@@ -21,13 +82,10 @@ export function htmlToScriptNote(el, doc) {
     const NewScriptNote = doc.createElement("ScriptNote");
     const NewParagraph = doc.createElement("Paragraph");
     const NewText = doc.createElement("Text")
-    NewScriptNote.setAttribute("Author", el.getAttribute("Author"));
-    NewScriptNote.setAttribute("Color", el.getAttribute("Color"));
-    NewScriptNote.setAttribute("DateModified", el.getAttribute("DateModified"));
-    NewScriptNote.setAttribute("DateTime", el.getAttribute("DateTime"));
-    NewScriptNote.setAttribute("Name", el.getAttribute("Name"));
-    NewScriptNote.setAttribute("Type", el.getAttribute("Type"));
-    NewText.textContent = el.textContent;
+    for (const Attribute of ["Author", "Color", "DateModified", "DateTime", "Name", "Type"]) {
+        NewScriptNote.setAttribute(Attribute, el.dataset[Attribute])
+    }
+    NewText.textContent = el.textContent.substring(el.textContent.lastIndexOf(":") + 2);
     NewParagraph.appendChild(NewText)
     NewScriptNote.appendChild(NewParagraph)
     return NewScriptNote;
@@ -36,40 +94,50 @@ export function htmlToScriptNote(el, doc) {
 /**
  * 
  * @param {Element} note 
- * @returns {HTMLElement}
+ * @returns {UUIDString}
  */
 function scenePropertiesToHTML(note) {
-    const NewSceneProperties = document.createElement("SceneProperties")
+    const NewSceneProperties = document.importNode(ScenePropertyTemplate, true)
     // length and page number have to updated programatically
-    NewSceneProperties.setAttribute("Length", note.getAttribute("Length"));
-    NewSceneProperties.setAttribute("Page", note.getAttribute("Page"));
-    NewSceneProperties.setAttribute("Title", note.getAttribute("Title"));
+    for (const Attribute of ["Length", "Page", "Title"]) {
+        const ThisAttribute = note.getAttribute(Attribute);
+        NewSceneProperties.dataset[Attribute] = ThisAttribute
+        NewSceneProperties.getElementsByClassName(`scene-prop-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${ThisAttribute}`
+    }
     const CharacterArcBeats = note.getElementsByTagName("CharacterArcBeat")
     for (const CharArcBeat of CharacterArcBeats) {
         const NewCharArc = document.createElement("characterarcbeat")
-        NewCharArc.setAttribute("Name", CharArcBeat.getAttribute("Name"))
+        NewCharArc.dataset["Name"] = CharArcBeat.getAttribute("Name")
         NewCharArc.textContent = CharArcBeat.getElementsByTagName("Text")[0].textContent;
-        NewSceneProperties.appendChild(NewCharArc)
+        NewSceneProperties.querySelector("content").appendChild(NewCharArc)
     }
-    return NewSceneProperties;
+    const NewUUID = window.crypto.randomUUID()
+    NewSceneProperties.style.positionAnchor = "--" + NewUUID
+    NewSceneProperties.style.top = `anchor(--${NewUUID} top)`
+    NewSceneProperties.style.right = `anchor(--${NewUUID} right)`
+    NewSceneProperties.querySelector("img").addEventListener("click", handleOpenNote)
+    NewSceneProperties.dataset.noteID = NewUUID
+    NewSceneProperties.id = NewUUID
+    ScenePropertiesEl.appendChild(NewSceneProperties)
+    return NewUUID;
 }
 
 /**
- * @param {HTMLElement} note 
+ * @param {HTMLElement} el 
  * @param {Document} doc
  * @returns {Element}
  */
-export function htmlToSceneProperties(note, doc) {
+export function htmlToSceneProperties(el, doc) {
     const NewSceneProperties = doc.createElement("SceneProperties");
-    NewSceneProperties.setAttribute("Length", note.getAttribute("Length"));
-    NewSceneProperties.setAttribute("Page", note.getAttribute("Page"));
-    NewSceneProperties.setAttribute("Title", note.getAttribute("Title"));
+    NewSceneProperties.setAttribute("Length", el.dataset["Length"]);
+    NewSceneProperties.setAttribute("Page", el.dataset["Page"]);
+    NewSceneProperties.setAttribute("Title", el.dataset["Title"]);
     const NewSceneArcBeats = doc.createElement("SceneArcBeats")
-    for (const CharArc of note.children) {
+    for (const CharArc of el.querySelectorAll("characterarcbeat")) {
         const NewCharArc = doc.createElement("CharacterArcBeat")
         const NewParagraph = doc.createElement("Paragraph")
         const NewText = doc.createElement("Text")
-        NewCharArc.setAttribute("Name", CharArc.getAttribute("Name"))
+        NewCharArc.setAttribute("Name", CharArc.dataset["Name"])
         NewText.textContent = CharArc.textContent;
         NewParagraph.appendChild(NewText)
         NewCharArc.appendChild(NewParagraph)
@@ -78,6 +146,7 @@ export function htmlToSceneProperties(note, doc) {
     NewSceneProperties.appendChild(NewSceneArcBeats)
     return NewSceneProperties
 }
+
 /**
  * @param {Element} el 
  * @returns {HTMLElement[]}
@@ -86,12 +155,18 @@ function EltoHTML(el) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
     /** @type {HTMLElement[]} */
     let res = [];
+    /** @type {UUIDString} */
     let elInnerHTML = "";
+    let newEl = document.createElement(elType)
     for (let tag of el.children) {
         if (tag.tagName === "ScriptNote") {
-            res.push(scriptNoteToHTML(tag))
+            const NewUUID = scriptNoteToHTML(tag);
+            newEl.dataset.noteID = NewUUID;
+            newEl.style.anchorName = "--" + NewUUID
         } else if (tag.tagName === "SceneProperties") {
-            res.push(scenePropertiesToHTML(tag))
+            const NewUUID = scenePropertiesToHTML(tag);
+            newEl.dataset.noteID = NewUUID
+            newEl.style.anchorName = "--" + NewUUID
         } else if (tag.tagName === "Text") {
             if (tag.hasAttribute("Style")) {
                 const styles = tag.getAttribute("Style").toLowerCase().replace('+', ' ').replace("allcaps", '')
@@ -106,7 +181,6 @@ function EltoHTML(el) {
         }
     }
     if (elType === "parenthetical") elInnerHTML = elInnerHTML.replace(/[()]/g, "") // parenthesis in parentheticals are assumed and handled by css
-    let newEl = document.createElement(elType)
     newEl.innerHTML = elInnerHTML;
     res.push(newEl)
     return res
@@ -123,7 +197,6 @@ export function XMLtoHTML(doc) {
     for (let el of contentEls) {
         res.push(...EltoHTML(el))
     }
-    console.log(res)
     return res;
 }
 

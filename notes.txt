@@ -92,6 +92,14 @@ DONE-ISH: Add a better header menu
 TODO: Add dual dialogue
 
 8/20/26
-TODO: keep script notes
+DONE: keep script notes
     <SceneProperties> > <SceneArcBeats> > <CharacterArcBeat> > <Paragraph> > <Text>
     <ScriptNote> > <Paragraph> > <Text>
+
+8/22/26
+TODO: Add notes window
+TODO: Add settings window
+TODO: Add budgeting window
+
+8/23/26
+TODO: Make all these typedefs into classes to make things simpler (ironically)

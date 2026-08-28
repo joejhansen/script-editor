@@ -365,4 +365,3 @@ function init() {
         }
     }
 }
-console.log()

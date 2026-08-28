@@ -1,6 +1,6 @@
 /**
  * Rich text formatting toggler for contenteditable elements.
- * Formats are represented as <span class="bold|italics|underline">...</span>,
+ * Formats are represented as </span class="bold|italics|underline">...<//span>,
  * which can nest (e.g. bold inside italics) to support combined styles.
  */
 
@@ -19,7 +19,12 @@ export function handleTextStyling(event, editableRoot) {
     event.preventDefault();
     toggleStyle(STYLE_CLASSES[key], editableRoot);
 }
-
+/**
+ * 
+ * @param {string} styleClass 
+ * @param {HTMLElement} editableRoot 
+ * @returns 
+ */
 function toggleStyle(styleClass, editableRoot) {
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
@@ -41,6 +46,9 @@ function toggleStyle(styleClass, editableRoot) {
 // styled element at the caret (which browsers tend to eat/normalize away).
 const pendingStyles = new Set();
 
+/**
+ * @param {string} styleClass 
+ */
 function toggleCaretStyle(styleClass) {
     const node = window.getSelection().anchorNode;
     const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
@@ -65,7 +73,13 @@ function applyPendingStylesToNode(textNode) {
 /* ---------------------------------------------------------------------- */
 /* Non-collapsed selection (actual highlighted text)                      */
 /* ---------------------------------------------------------------------- */
-
+/**
+ * @param {Range} range 
+ * @param {string} styleClass 
+ * @param {Selection} selection 
+ * @param {HTMLElement} editableRoot 
+ * @returns 
+ */
 function toggleSelectionStyle(range, styleClass, selection, editableRoot) {
     splitRangeBoundaries(range);
     const textNodes = getTextNodesInRange(range);
@@ -98,6 +112,9 @@ function toggleSelectionStyle(range, styleClass, selection, editableRoot) {
 // Splits the start/end text nodes of the range so the range's boundaries
 // fall exactly on node boundaries. Without this, wrapping/unwrapping would
 // grab characters outside what the user actually selected.
+/**
+ * @param {Range} range 
+ */
 function splitRangeBoundaries(range) {
     const { startContainer, startOffset, endContainer, endOffset } = range;
 
@@ -113,6 +130,10 @@ function splitRangeBoundaries(range) {
     }
 }
 
+/**
+ * @param {Range} range 
+ * @returns 
+ */
 function getTextNodesInRange(range) {
     // If the whole selection lives inside one text node, commonAncestorContainer
     // IS that text node — and a TreeWalker rooted on a text node can't walk into
@@ -134,15 +155,25 @@ function getTextNodesInRange(range) {
     return nodes;
 }
 
+/**
+ * @param {Node} node 
+ * @param {string} styleClass 
+ * @param {HTMLElement} boundary 
+ * @returns 
+ */
 function hasStyleAncestor(node, styleClass, boundary) {
     let el = node.parentElement;
     while (el && el !== boundary) {
-        if (el.classList?.contains(styleClass)) return true;
+        if (el.classList?.contains(styleClass) || el.classList?.contains(styleClass.toUpperCase())) return true;
         el = el.parentElement;
     }
     return false;
 }
 
+/**
+ * @param {Node} node 
+ * @param {string} styleClass 
+ */
 function wrapNodeInStyle(node, styleClass) {
     const span = document.createElement("span");
     span.className = styleClass;
@@ -153,17 +184,33 @@ function wrapNodeInStyle(node, styleClass) {
 // Removes styleClass from whichever ancestor span carries it, splitting
 // that span into up-to-three pieces (before/target/after) so siblings
 // outside the selection keep their formatting untouched.
+/**
+ * 
+ * @param {Node} node 
+ * @param {string} styleClass 
+ * @param {HTMLElement} boundary 
+ * @returns 
+ */
 function removeStyleFromNode(node, styleClass, boundary) {
     let el = node.parentElement;
     while (el && el !== boundary) {
         if (el.classList?.contains(styleClass)) {
             unwrapStyleFromChild(el, node, styleClass);
             return;
+        } else if (el.classList?.contains(styleClass.toUpperCase())) {
+            unwrapStyleFromChild(el, node, styleClass.toUpperCase())
+            return;
         }
         el = el.parentElement;
     }
 }
 
+/**
+ * 
+ * @param {Element} styledEl 
+ * @param {Node} targetNode 
+ * @param {string} styleClass 
+ */
 function unwrapStyleFromChild(styledEl, targetNode, styleClass) {
     const parent = styledEl.parentNode;
 
@@ -210,6 +257,10 @@ function unwrapStyleFromChild(styledEl, targetNode, styleClass) {
 // which reselectNodes uses right after this runs. normalize() deletes the
 // second of two merged nodes (detaching it) and grows the first node's
 // length, either of which corrupts those references before reselection.
+/**
+ * @param {HTMLElement} root 
+ * @param {string} styleClass 
+ */
 function mergeAdjacentSpans(root, styleClass) {
     let spans = root.querySelectorAll(`span.${styleClass}`);
     spans.forEach((span) => {
@@ -227,7 +278,11 @@ function mergeAdjacentSpans(root, styleClass) {
         }
     });
 }
-
+/**
+ * @param {Selection} selection 
+ * @param {Node[]} textNodes 
+ * @returns 
+ */
 function reselectNodes(selection, textNodes) {
     if (!textNodes.length) return;
     const first = textNodes[0];

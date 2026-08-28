@@ -206,3 +206,14 @@ function LoadElSetting(el) {
         Level: Outline ? parseInt(Outline.getAttribute("Level")) || 1 : 1
     };
 }
+/**
+ * @param {HTMLElement} child 
+ * @param {HTMLElement} parent 
+ * @returns {number}
+ */
+export function getChildElementIndex(child, parent) {
+    for (let i = 0; i < parent.childElementCount; i++) {
+        if (parent.children[i] === child) return i;
+    }
+    return -1;
+}
