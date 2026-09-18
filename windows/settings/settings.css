@@ -1,3 +1,9 @@
+
+:host(:popover-open) {
+    border: 1px solid var(--color-text) !important;  /* Forgive me*/
+    background-color: var(--color-primary);
+}
+
 ul,
 li {
     list-style-type: none;
@@ -57,7 +63,7 @@ body {
     height: 100svh;
 }
 
-main,
+#settings-content,
 aside,
 nav {
     background-color: var(--color-primary);
@@ -73,10 +79,9 @@ aside {
         margin-right: 1rem;
     }
 
-    /* justify-self: end; */
 }
 
-main {
+#settings-content {
     height: auto;
     padding: 0 1rem 0 1rem;
     display: flex;

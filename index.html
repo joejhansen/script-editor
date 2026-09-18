@@ -106,7 +106,7 @@
                                         src="img/material-icons/format_color_text_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
                                     <p>Font</p>
                                 </button></li>
-                            <li><button><img
+                            <li><button popovertarget="watermark-wrapper"><img
                                         src="img/material-icons/branding_watermark_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
                                     <p>Watermark</p>
                                 </button></li>
@@ -176,15 +176,15 @@
                             popovertarget="format-popover">Format</button></li>
                     <div id="format-popover" class="option-menu" popover="manual">
                         <ul>
-                            <li><button><img
+                            <li><button popovertarget="settings-popover" id="btn-settings"><img
                                         src="img/material-icons/straighten_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
                                         alt="" srcset="">
-                                    <p>Change Element Settings</p>
+                                    <p>Page & Element Settings</p>
                                 </button></li>
-                            <li><button><img src="img/material-icons/padding_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
+                            <!-- <li><button><img src="img/material-icons/padding_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
                                         alt="" srcset="">
                                     <p>Change Page Formatting</p>
-                                </button></li>
+                                </button></li> -->
                         </ul>
                     </div>
                     <li><button id="production-menu-button" class="option-menu-button"
@@ -272,6 +272,14 @@
                 </template>
             </sceneproperties>
         </notes>
+        <div id="watermark-wrapper" popover="auto">
+            <label for="watermark-input">Input Watermark</label>
+            <input type="text" name="watermark-input" id="watermark-input">
+            <div id="watermark-submit">
+                <button id="watermark-save">Save</button>
+                <button id="watermark-cancel">Cancel</button>
+            </div>
+        </div>
         <div id="stats-bar">
             <div></div>
             <div>
@@ -282,10 +290,121 @@
             <div>
             </div>
         </div>
+        <template id="template-settings">
+            <div id="settings-content">
+                <section id="page-settings">
+                    <h2>Page</h2>
+                    <ul class="margins" id="page-margins">
+                        <li>
+                            <label for="page-topMargin">Top Margin</label>
+                            <input type="text" name="page-topMargin" id="page-topMargin">
+                        </li>
+                        <li>
+                            <label for="page-bottomMargin">Bottom Margin</label>
+                            <input type="text" name="page-bottomMargin" id="page-bottomMargin">
+                        </li>
+                        <li>
+                            <label for="page-leftMargin">Left Margin</label>
+                            <input type="text" name="page-leftMargin" id="page-leftMargin">
+                        </li>
+                        <li>
+                            <label for="page-rightMargin">Right Margin</label>
+                            <input type="text" name="page-rightMargin" id="page-rightMargin">
+                        </li>
+                    </ul>
+                </section>
+                <section id="element-settings">
+                    <label for="element-select">
+                        <h2>Elements</h2>
+                    </label>
+                    <select name="elements" id="element-select">
+                        <option value="sceneheading">Scene Heading</option>
+                        <option value="character">Character</option>
+                        <option value="dialogue">Dialogue</option>
+                        <option value="parenthetical">Parenthetical</option>
+                        <option value="transition">Transition</option>
+                        <option value="shot">Shot</option>
+                        <option value="sequence">Sequence</option>
+                        <option value="newact">New Act</option>
+                        <option value="endofact">End of Act</option>
+                        <option value="castlist">Cast List</option>
+                        <option value="general">General</option>
+                    </select>
+                    <h3 id="">Margins</h3>
+                    <ul class="margins" id="element-margins">
+                        <li>
+                            <label for="element-topMargin">Top Margin</label>
+                            <input type="text" name="element-topMargin" id="element-topMargin">
+                        </li>
+                        <li>
+                            <label for="element-bottomMargin">Bottom Margin</label>
+                            <input type="text" name="element-bottomMargin" id="element-bottomMargin">
+                        </li>
+                        <li>
+                            <label for="element-leftMargin">Left Margin</label>
+                            <input type="text" name="element-leftMargin" id="element-leftMargin">
+                        </li>
+                        <li><label for="element-rightMargin">Right Margin</label>
+                            <input type="text" name="element-rightMargin" id="element-rightMargin">
+                        </li>
+                    </ul>
+                    <h3>Fonts</h3>
+                    <ul id="fonts">
+                        <li>
+                            <label for="font">Font</label>
+                            <select name="font" id="font">
+                                <option value="Courier New">Courier New</option>
+                                <option value="Helvetica">Helvetica</option>
+                                <option value="Times">Times New Roman</option>
+                            </select>
+                        </li>
+                        <li>
+                            <label for="fontSize">Font Size</label>
+                            <input type="text" name="fontSize" id="fontSize">
+                        </li>
+                    </ul>
+                    <h3>Indent and Alignment</h3>
+                    <ul id="indent-alignment">
+                        <li>
+                            <label for="indent">Indent</label>
+                            <input type="text" name="indent" id="indent">
+                        </li>
+                        <li>
+                            <label for="textAlign">Alignment</label>
+                            <select name="textAlign" id="textAlign">
+                                <option value="Left">Left</option>
+                                <option value="Center">Center</option>
+                                <option value="Right">Right</option>
+                            </select>
+                        </li>
+                    </ul>
+                    <h3>Inline Styles</h3>
+                    <ul id="styling">
+                        <li><label for="bold">Bold</label><input type="checkbox" name="bold" id="bold"></li>
+                        <li><label for="italics">Italics</label><input type="checkbox" name="italics" id="italics"></li>
+                        <li><label for="underline">Underline</label><input type="checkbox" name="underline"
+                                id="underline"></li>
+                        <li><label for="allCaps">All Caps</label><input type="checkbox" name="allCaps" id="allCaps">
+                        </li>
+                    </ul>
+                </section>
+
+            </div>
+            <aside id="confirm-bar">
+                <ul>
+                    <li><button id="settings-cancel">Cancel</button></li>
+                    <li><button id="settings-save">Save</button></li>
+                </ul>
+            </aside>
+
+        </template>
+        <settings-panel popover id="settings-popover"></settings-panel>
+
     </main>
     <script src="@pdf-lib-fontkit/fontkit.umd.min.js"></script>
     <script src="pdf-lib/pdf-lib.min.js"></script>
     <script src="index.js" type="module" defer></script>
+    <script src="SettingsPopover.js" type="module"></script>
 </body>
 
 </html>

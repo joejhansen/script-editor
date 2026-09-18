@@ -52,7 +52,9 @@ let secondLastCharacterUsed = "";
 let titlePageOuterHTML = "";
 let editingTitlePage = false;
 let scriptInnerHTML = "";
-
+let watermark = "";
+/** @type {HTMLElement} */
+const WatermarkPopover = document.getElementById("watermark-wrapper")
 let undoStack = new UndoStack();
 
 /**
@@ -1597,6 +1599,14 @@ document.getElementById("copy-button").addEventListener("click", handleCopy)
 document.getElementById("cut-button").addEventListener("click", handleCut)
 document.getElementById("paste-button").addEventListener("click", handlePaste)
 CurrentPageTracker.addEventListener("keydown", handlePageTracker)
+document.getElementById("watermark-save").addEventListener("click", (e) => {
+    watermark = document.getElementById("watermark-input").value
+    WatermarkPopover.hidePopover();
+})
+document.getElementById("watermark-cancel").addEventListener("click", (e) => {
+    document.getElementById("watermark-input").value = watermark
+    WatermarkPopover.hidePopover();
+})
 
 
 /**

@@ -86,8 +86,10 @@ main {
     padding: 0;
     inset: auto;
     border: 0;
-    background-color: inherit;
+    /* background-color: inherit; */
 }
+
+
 
 button,
 input {
@@ -325,6 +327,7 @@ button:hover {
     justify-content: space-evenly;
     background-color: var(--color-primary);
     z-index: var(--z-index-ui);
+
     * {
         padding: 0;
         margin: 0;
@@ -358,6 +361,7 @@ sceneheading::before {
     position: absolute;
     left: -.75in;
 }
+
 
 /* sceneheading::after { */
 /* TODO: figure out how to do this because I'm already using the ::after for autocomplete suggestions*/
@@ -555,6 +559,38 @@ pagenum {
 
 titletext {
     position: relative;
+}
+
+#watermark-wrapper {
+    &:popover-open {
+        display: flex;
+    }
+
+    flex-direction: column;
+    border: solid 1px var(--color-text);
+    background-color: var(--color-primary);
+    padding: 1ch;
+    width: auto;
+
+    input {
+        width: auto;
+        min-width: 15ch;
+        field-sizing: content;
+        font-size: 1rem;
+        background-color: var(--color-hover);
+        margin: 1ch;
+        ;
+    }
+
+    #watermark-submit {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+
+        button {
+            width: min-content;
+        }
+    }
 }
 
 @media(prefers-color-scheme:dark) {

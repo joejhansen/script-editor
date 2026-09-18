@@ -33,9 +33,10 @@
  * @property {ElementSetting} dialogue
  * @property {ElementSetting} transition
  * @property {ElementSetting} shot
- * @property {ElementSetting} castlist
+ * @property {ElementSetting} sequence
  * @property {ElementSetting} newact
  * @property {ElementSetting} endofact
+ * @property {ElementSetting} castlist
  */
 
 /**
