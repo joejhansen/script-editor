@@ -8,6 +8,16 @@
     --z-index-ui: 300;
     --z-index-notes: 200;
     --z-index-page: 100;
+    --vp-sm: 576px;
+    --vp-md: 768px;
+    --vp-lg: 992px;
+    --vp-xl: 1200px;
+    --vp-xxl: 1400px;
+    --header-height: 1in;
+    --page-scale: 1;
+    --page-height: 11in;
+    --page-width:8.5in;
+    --font-size: 12pt;
     font-weight: 400;
     color-scheme: light dark;
     font-synthesis: none;
@@ -58,6 +68,7 @@ main {
 }
 
 .page {
+    --padding: calc(1in*var(--page-scale));
     margin: auto;
     counter-increment: page;
     position: relative;
@@ -65,14 +76,15 @@ main {
     line-height: 1;
     display: flex;
     flex-direction: column;
-    font-size: 12pt;
+    font-size: calc(12pt*var(--page-scale));
     outline: solid 1px var(--color-text);
-    width: 8.5in;
-    height: 11in;
-    padding: 1in 1in 1in 1.5in;
-    margin-bottom: 1rem;
+    width: calc(var(--page-width)*var(--page-scale));
+    height: calc(var(--page-height)*var(--page-scale));
+    padding: var(--padding) var(--padding) var(--padding) calc(1.5*var(--padding));
     z-index: var(--z-index-page);
-    background: var(--color-page);
+    background-color: var(--color-page);
+    margin-bottom: calc(1rem*var(--page-scale));
+    /* scale: min(1, var(--page-scale)) */
 }
 
 
@@ -86,7 +98,7 @@ main {
     padding: 0;
     inset: auto;
     border: 0;
-    /* background-color: inherit; */
+    background-color: inherit;
 }
 
 
@@ -104,7 +116,7 @@ input {
 }
 
 button:hover {
-    background: var(--color-hover);
+    background-color: var(--color-hover);
 }
 
 #header-menu {
@@ -203,10 +215,11 @@ button:hover {
                 top: anchor(--options-wrapper top);
                 left: anchor(--options-wrapper left);
                 width: 100%;
-                height: 1in;
+                height: var(--header-height);
 
                 img {
                     margin: auto;
+                    /* height: calc(.5*var(--header-height)) */
                 }
 
                 >ul {
@@ -289,7 +302,7 @@ button:hover {
     >#option-menu-wrapper {
         anchor-name: --options-wrapper;
         background-color: var(--color-primary);
-        height: 1in;
+        height: var(--header-height);
         width: 100%;
         border-bottom: solid 1px var(--color-text);
     }
@@ -353,13 +366,13 @@ button:hover {
 sceneheading {
     position: relative;
     counter-increment: scene;
-    padding-top: 32px;
+    padding-top: calc(32px*var(--page-scale));
 }
 
 sceneheading::before {
     content: counter(scene);
     position: absolute;
-    left: -.75in;
+    left: calc(-.75in*var(--page-scale));
 }
 
 
@@ -372,63 +385,63 @@ sceneheading::before {
 /* } */
 
 shot {
-    padding-top: 32px;
+    padding-top: calc(32px*var(--page-scale));
 }
 
 action {
-    padding-top: 16px;
+    padding-top: calc(16px*var(--page-scale));
 }
 
 transition {
     text-align: right;
-    padding-top: 16px;
+    padding-top: calc(16px*var(--page-scale));
 }
 
 character {
-    padding-left: 2in;
-    padding-right: .25in;
-    padding-top: 16px;
+    padding-left: calc(2in*var(--page-scale));
+    padding-right: calc(.25in*var(--page-scale));
+    padding-top: calc(16px*var(--page-scale));
 
     &:has(>br)::after {
         position: absolute;
-        top: 1rem;
+        top: calc(1rem*var(--page-scale));
     }
 }
 
 dialogue {
     position: relative;
-    padding-left: 1in;
-    padding-right: 1.5in;
+    padding-left: calc(1in*var(--page-scale));
+    padding-right: calc(1.5in*var(--page-scale));
 
     &:first-child {
-        padding-top: 1rem;
+        padding-top: calc(1rem*var(--page-scale));
     }
 
     &::after {
         position: absolute;
-        bottom: -1rem;
-        left: 2in;
+        bottom: calc(-1rem*var(--page-scale));
+        left: calc(2in*var(--page-scale));
         content: attr(data-more);
     }
 
     &::before {
         position: absolute;
         content: attr(data-contd);
-        top: -1rem;
-        left: 2in;
+        top: calc(-1rem*var(--page-scale));
+        left: calc(2in*var(--page-scale));
     }
 }
 
 parenthetical {
     position: relative;
-    text-indent: -0.1in;
-    padding-left: 1.5in;
-    padding-right: 2in;
+    text-indent: calc(-0.1in*var(--page-scale));
+    padding-left: calc(1.5in*var(--page-scale));
+    padding-right: calc(2in*var(--page-scale));
 
     &:has(>br)::after {
         position: absolute;
         top: 0;
-        left: calc(1.5in + 1ch);
+        left: calc(calc(1.5in + 1ch)*var(--page-scale));
     }
 
     &::before {
@@ -447,15 +460,15 @@ endofact {
     font-weight: bold;
     text-decoration: underline;
     text-align: center;
-    left: -.25in;
+    left: calc(-.25in*var(--page-scale));
 }
 
 newact {
-    padding-top: 16px;
+    padding-top: calc(16px*var(--page-scale));
 }
 
 endofact {
-    padding-top: 32px;
+    padding-top: calc(32px*var(--page-scale));
 }
 
 sequence {
@@ -463,8 +476,8 @@ sequence {
     text-transform: uppercase;
     font-weight: bold;
     text-decoration: underline;
-    left: -.25in;
-    padding-top: 32px;
+    left: calc(-.25in*var(--page-scale));
+    padding-top: calc(32px*var(--page-scale));
 }
 
 scriptnote,
@@ -476,8 +489,11 @@ sceneproperty {
     img {
         position: absolute;
         /* position: relative; */
-        right: -4rem;
+        right: calc(-4rem*var(--page-scale));
         cursor: pointer;
+        height:calc(48px*var(--page-scale));
+        aspect-ratio: 1/1;
+
     }
 
     >content {
@@ -546,8 +562,8 @@ span.UNDERLINE {
 }
 
 continued {
-    padding-left: 2in;
-    padding-right: 3in;
+    padding-left: calc(2in*var(--page-scale));
+    padding-right: calc(3in*var(--page-scale));
 }
 
 pagenum {

@@ -6,13 +6,15 @@ import {
     DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH,
     POINTS_PER_INCH, SCENE_INTRO_REGEX, TIME_OF_DAY_REGEX, VALID_FDX_TYPES,
     DEFAULT_FONT_SIZE_PIXELS, DEFAULT_FONT_SIZE_POINTS, NOTE_ELEMENTS,
-    getChildElementIndex
+    getChildElementIndex,
+    LoadPageSettings
 } from "./ScriptSettings.js";
 import { UndoStack } from "./UndoStack.js";
 import { XMLtoHTML, htmlToSceneProperties, htmlToScriptNote, parseXMLFromFile, parseXMLString, handleOpenNote } from "./ScriptConversion.js";
 import { saveScrollPosition, restoreScrollPosition, getCursorPosition } from "./UX.js";
 import { getSceneLength, numAsClosestFraction, paginateScreenplay } from "./Pagination.js";
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js";
+import { scalePage } from "./PageScaler.js";
 
 const { PDFDocument, StandardFonts, rgb } = PDFLib
 const { fontkit } = window.fontkit
@@ -35,6 +37,10 @@ const ScriptNotesEl = document.getElementsByTagName("scriptnotes")[0]
 let defaultScriptSettings = null
 /** @type {import("./ScriptSettings.js").ElementSettings | null} */
 let scriptSettings = null
+/** @type {import("./ScriptSettings.js").PageSettings | null} */
+let defaultPageSettings = null;
+/** @type {import("./ScriptSettings.js").PageSettings | null} */
+let pageSettings = null;
 /** @type {Document | null} */
 let blankScriptXML = null
 /** @type {Document | null} */
@@ -143,8 +149,10 @@ function handleFileInput(event) { // globals
             ScriptWrapper.removeChild(ScriptWrapper.firstChild)
         }
         originalXML = doc;
-        scriptSettings = LoadElSettings(doc)
-        characterSet = getCharacterInfo(doc)
+        pageSettings = LoadPageSettings(doc);
+        console.log(pageSettings)
+        scriptSettings = LoadElSettings(doc);
+        characterSet = getCharacterInfo(doc);
         titlePageOuterHTML = loadTitlePage(doc).map(e => e.outerHTML).join('')
         const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc));
         for (const page of screenplayPages) {
@@ -1024,7 +1032,11 @@ async function loadBlankXMLDoc() { // globals
         fetch("BlankFD13.fdx")
             .then(res => res.text())
             .then(text => parseXMLString(text))
-            .then(doc => { blankScriptXML = doc; originalXML = blankScriptXML; titlePageOuterHTML = loadTitlePage(originalXML).map(e => e.outerHTML).join('') })
+            .then(doc => {
+                blankScriptXML = doc;
+                originalXML = blankScriptXML;
+                titlePageOuterHTML = loadTitlePage(originalXML).map(e => e.outerHTML).join('')
+            })
             .catch(e => console.warn(e))
     } else {
         originalXML = blankScriptXML
@@ -1033,11 +1045,13 @@ async function loadBlankXMLDoc() { // globals
 }
 
 async function loadDefaultSettings() { // globals
-    if (defaultScriptSettings === null) {
+    if (defaultScriptSettings === null || defaultPageSettings === null) {
         fetch("DefaultSettings.xml")
             .then(res => res.text())
             .then(text => parseXMLString(text))
             .then((doc) => {
+                defaultPageSettings = LoadPageSettings(doc);
+                pageSettings = defaultPageSettings;
                 defaultScriptSettings = LoadElSettings(doc);
                 scriptSettings = defaultScriptSettings
                 if (scriptSettings === null) throw "DEBUG:\t loadDefaultSettings -> Something went wrong loading scriptSettings"
@@ -1487,9 +1501,10 @@ function removeUndoIDs() { // globals
  * @param {Event} e 
  */
 function handleOnLoad(e) { // globals
+    scalePage()
     document.getElementsByClassName("option-menu")[0].showPopover()
 
-    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage, lastScriptNotes, lastSceneProperties] = tryGetLastScreenplay()
+    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage, lastScriptNotes, lastSceneProperties, lastPageSettings] = tryGetLastScreenplay()
     if (ok) {
         ScriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
         ScenePropertiesEl.innerHTML = lastSceneProperties;
@@ -1500,6 +1515,10 @@ function handleOnLoad(e) { // globals
 
         if (lastXMLDoc) originalXML = lastXMLDoc
         else loadBlankXMLDoc();
+
+        if (lastPageSettings) pageSettings = lastPageSettings
+        else pageSettings = LoadPageSettings(originalXML)
+
 
         FileNameInput.value = lastFileName ? lastFileName : "New Script"
 
@@ -1561,7 +1580,8 @@ function handleVisibilityChange(e) {
         characterSet,
         lastFocusedElement,
         ScriptNotesEl,
-        ScenePropertiesEl
+        ScenePropertiesEl,
+        pageSettings
     )
 }
 
@@ -1607,7 +1627,7 @@ document.getElementById("watermark-cancel").addEventListener("click", (e) => {
     document.getElementById("watermark-input").value = watermark
     WatermarkPopover.hidePopover();
 })
-
+window.addEventListener("resize",scalePage)
 
 /**
  * @typedef {object} ScrollElement

@@ -1,4 +1,4 @@
-import { LAST_SCRIPT_SETTINGS_KEY } from "./LocalStorage.js";
+import { LAST_PAGE_SETTINGS_KEY, LAST_SCRIPT_SETTINGS_KEY } from "./LocalStorage.js";
 import { PopoverPanel } from "./PopoverPanel.js";
 import { PIXELS_PER_INCH, POINTS_PER_INCH } from "./ScriptSettings.js";
 import styles from "./windows/settings/settings.css" with {type: "css" };
@@ -23,7 +23,7 @@ import styles from "./windows/settings/settings.css" with {type: "css" };
  */
 
 /** 
- * @typedef {Object} ScriptSettings 
+ * @typedef {Object} MenuSettings 
  * @property {Margins} page
  * @property {ScriptElements} elements
  */
@@ -81,23 +81,29 @@ const DEFAULT_FONT_SIZE = 16;
 
 /**
  * 
- * @param {ScriptElements} menuSettings
- * @param {import("./ScriptSettings.js").ElementSettings} localSettings
- * @returns {import("./ScriptSettings.js").ElementSettings} 
+ * @param {MenuSettings} menuSettings
+ * @param {import("./ScriptSettings.js").ElementSettings} elSettings
+ * @param {import("./ScriptSettings.js").PageSettings} pageSettings
+ * @returns {[import("./ScriptSettings.js").ElementSettings, import("./ScriptSettings.js").PageSettings]} 
  */
-export function ScriptElementsToElementSettings(menuSettings, localSettings) {
-    for (const [name, val] of Object.entries(menuSettings)) {
-        localSettings[name] = ScriptElementToElementSetting(val)
+export function MenuSettingsToFullSettings(menuSettings, elSettings, pageSettings) {
+    for (const [name, val] of Object.entries(menuSettings.elements)) {
+        elSettings[name] = MenuSettingToElSetting(val)
     }
-    return localSetting;
+    pageSettings.TopMargin = menuSettings.page.TopMargin;
+    pageSettings.BottomMargin = menuSettings.page.BottomMargin;
+    pageSettings.LeftMargin = menuSettings.page.LeftMargin;
+    pageSettings.RightMargin = menuSettings.page.RightMargin;
+
+    return [elSettings, pageSettings];
 }
 /**
  * 
  * @param {ScriptElementSettings} menuSetting 
- * @param {import("./ScriptSettings.js").ElementSetting} localSetting
+ * @param {import("./ScriptSettings.js").ElementSetting} elSetting
  * @returns {import("./ScriptSettings.js").ElementSetting}
  */
-export function ScriptElementToElementSetting(menuSetting, localSetting) {
+export function MenuSettingToElSetting(menuSetting, elSetting) {
     let styleString = "";
     for (const [name, val] of Object.entries(menuSetting.styles)) {
         if (val) {
@@ -108,16 +114,76 @@ export function ScriptElementToElementSetting(menuSetting, localSetting) {
             }
         }
     }
-    localSetting.Style = styleString;
-    localSetting.Font = menuSetting.font.name
-    localSetting.Size = menuSetting.font.size
-    localSetting.FirstIndent = menuSetting.paragraph.indent
-    localSetting.Alignment = menuSetting.paragraph.textAlign
-    localSetting.LeftIndent = menuSetting.margins.left
-    localSetting.RightIndent = menuSetting.margins.right
-    localSetting.SpaceBefore = menuSetting.margins.top
+    elSetting.Style = styleString;
+    elSetting.Font = menuSetting.font.name
+    elSetting.Size = menuSetting.font.size
+    elSetting.FirstIndent = menuSetting.paragraph.indent
+    elSetting.Alignment = menuSetting.paragraph.textAlign
+    elSetting.LeftIndent = menuSetting.margins.left
+    elSetting.RightIndent = menuSetting.margins.right
+    elSetting.SpaceBefore = menuSetting.margins.top
 
-    return localSetting;
+    return elSetting;
+}
+/**
+ * @param {import("./ScriptSettings.js").ElementSettings} elSettings 
+ * @param {import("./ScriptSettings.js").PageSettings} pageSettings
+ * @returns {MenuSettings}
+ */
+export function FullSettingsToMenuSettings(elSettings, pageSettings = null) {
+    return { elements: ElSettingsToMenuSettings(elSettings), page: PageSettingsToMenuSettings(pageSettings) }
+}
+/**
+ * @param {import("./ScriptSettings.js").ElementSettings} elSettings 
+ * @returns {ScriptElements}
+ */
+export function ElSettingsToMenuSettings(elSettings) {
+    /** @type {ScriptElements} */
+    let res = {};
+    for (const [elName, val] of Object.entries(elSettings)) {
+        res[elName] = ElSettingToMenuSetting(val)
+    }
+    return res;
+}
+/**
+ * 
+ * @param {import("./ScriptSettings.js").ElementSetting} elSetting 
+ * @returns {ScriptElementSettings}
+ */
+export function ElSettingToMenuSetting(elSetting) {
+    /** @type {StyleSettings} */
+    let stylesObj = { AllCaps: false, Bold: false, Italic: false, Underline: false }
+    for (const styleStr of elSetting.Style.split("+")) {
+        stylesObj[styleStr] = true;
+    }
+    return {
+        font: { name: elSetting.Font, size: elSetting.Size },
+        margins: { bottom: 0, left: elSetting.LeftIndent, right: elSetting.RightIndent, top: elSetting.SpaceBefore },
+        paragraph: { indent: elSetting.FirstIndent, textAlign: elSetting.Alignment },
+        styles: stylesObj
+    }
+}
+/**
+ * @param {import("./ScriptSettings.js").PageSettings} pageSettings 
+ * @returns {Margins}
+ */
+export function PageSettingsToMenuSettings(pageSettings = null) {
+    if (pageSettings !== null) {
+
+        return {
+            bottom: pageSettings.BottomMargin,
+            left: pageSettings.LeftMargin,
+            right: pageSettings.RightMargin,
+            top: pageSettings.TopMargin
+        }
+    } else {
+        return {
+            bottom: 1,
+            left: 1.5,
+            right: 1,
+            top: 1,
+        }
+    }
 }
 
 
@@ -127,30 +193,25 @@ export function ScriptElementToElementSetting(menuSetting, localSetting) {
 export class SettingsPanel extends PopoverPanel {
     static styles = styles;
     static templateId = 'template-settings';
-    settings = this.newSettings();
+    /** @type {MenuSettings | null} */
+    Settings = null;
+    /** @type {HTMLElement | null} */
     ElementSettings = null;
+    /** @type {HTMLElement | null} */
     PageSettings = null;
+    /** @type {HTMLSelectElement | null} */
     ElementSelect = null;
-    LastSettings = null;
+    /** @type {import("./ScriptSettings.js").ElementSettings | null} */
+    LastElSettings = null;
+    /**@type {import("./ScriptSettings.js").PageSettings | null} */
+    LastPageSettings = null;
     CurrentElement = "sceneHeading"
 
     init(root) {
         /** @type {import("./ScriptSettings.js").ElementSettings} */
-        this.LastSettings = JSON.parse(localStorage.getItem(LAST_SCRIPT_SETTINGS_KEY))
-        // console.log(this.LastSettings)
-        // console.log(this.settings)
-        // for (let [elName, setting] of Object.entries(this.LastSettings)) {
-        //     this.updateSettings(
-        //         {
-        //             type: "element",
-        //             name: elName,
-        //             data: this.newScriptElement(
-        //                 this.newMarginSettings(setting.SpaceBefore, setting.RightIndent, undefined, setting.LeftIndent)
-        //             )
-        //         }
-        //     )
-        // }
-        // console.log(this.settings)
+        this.LastElSettings = JSON.parse(localStorage.getItem(LAST_SCRIPT_SETTINGS_KEY))
+        this.LastPageSettings = JSON.parse(localStorage.getItem(LAST_PAGE_SETTINGS_KEY))
+        this.Settings = FullSettingsToMenuSettings(this.LastElSettings, this.LastPageSettings)
         this.ElementSettings = root.getElementById("element-settings")
         this.PageSettings = root.getElementById("page-settings")
         this.ElementSelect = root.getElementById("element-select")
@@ -164,9 +225,9 @@ export class SettingsPanel extends PopoverPanel {
  */
     updateSettings(payload) {
         if (payload.type === "element") {
-            this.settings.elements[payload.name] = payload.data
+            this.Settings.elements[payload.name] = payload.data
         } else if (payload.type === "page") {
-            this.settings.page = payload.data;
+            this.Settings.page = payload.data;
         }
     }
     /**
@@ -357,7 +418,7 @@ export class SettingsPanel extends PopoverPanel {
         }
     }
     /** 
- * @returns {ScriptSettings} 
+ * @returns {MenuSettings} 
  */
     newSettings(
         elements = this.newScriptElements(),
@@ -378,28 +439,27 @@ export class SettingsPanel extends PopoverPanel {
         this.renderElementSettings(root)
     }
     renderPageSettings(root) {
-        for (const [key, val] of Object.entries(this.settings.page)) {
+        for (const [key, val] of Object.entries(this.Settings.page)) {
             root.getElementById(`page-${key}Margin`).value = val;
         }
     }
     renderElementSettings(root) {
         const currentElement = this.ElementSelect.value;
-        console.log(this.settings.elements[this.ElementSelect.value])
-        root.getElementById("element-topMargin").value = this.settings.elements[currentElement].margins.top
-        root.getElementById("element-bottomMargin").value = this.settings.elements[currentElement].margins.bottom
-        root.getElementById("element-leftMargin").value = this.settings.elements[currentElement].margins.left
-        root.getElementById("element-rightMargin").value = this.settings.elements[currentElement].margins.right
-        root.getElementById("font").value = this.settings.elements[currentElement].font.name
-        root.getElementById("fontSize").value = this.settings.elements[currentElement].font.size
-        root.getElementById("indent").value = this.settings.elements[currentElement].paragraph.indent
-        root.getElementById("textAlign").value = this.settings.elements[currentElement].paragraph.textAlign
-        root.getElementById("bold").checked = this.settings.elements[currentElement].styles.Bold
-        root.getElementById("italics").checked = this.settings.elements[currentElement].styles.Italic
-        root.getElementById("underline").checked = this.settings.elements[currentElement].styles.Underline
-        root.getElementById("allCaps").checked = this.settings.elements[currentElement].styles.AllCaps
+        root.getElementById("element-topMargin").value = this.Settings.elements[currentElement].margins.top
+        root.getElementById("element-bottomMargin").value = this.Settings.elements[currentElement].margins.bottom
+        root.getElementById("element-leftMargin").value = this.Settings.elements[currentElement].margins.left
+        root.getElementById("element-rightMargin").value = this.Settings.elements[currentElement].margins.right
+        root.getElementById("font").value = this.Settings.elements[currentElement].font.name
+        root.getElementById("fontSize").value = this.Settings.elements[currentElement].font.size
+        root.getElementById("indent").value = this.Settings.elements[currentElement].paragraph.indent
+        root.getElementById("textAlign").value = this.Settings.elements[currentElement].paragraph.textAlign
+        root.getElementById("bold").checked = this.Settings.elements[currentElement].styles.Bold
+        root.getElementById("italics").checked = this.Settings.elements[currentElement].styles.Italic
+        root.getElementById("underline").checked = this.Settings.elements[currentElement].styles.Underline
+        root.getElementById("allCaps").checked = this.Settings.elements[currentElement].styles.AllCaps
     }
     handleChangeElement(event, root) {
-        this.settings.elements[this.CurrentElement] = this.grabElementSettings(event, root);
+        this.Settings.elements[this.CurrentElement] = this.grabElementSettings(event, root);
         this.renderElementSettings(root)
         this.CurrentElement = event.target.value;
     }
@@ -411,7 +471,6 @@ export class SettingsPanel extends PopoverPanel {
         // localStorage.setItem(LAST_SCRIPT_SETTINGS_KEY, this.LastSettings)
         document.getElementById("btn-settings").click();
     }
-
     /**
      * @param {PointerEvent} event 
      */

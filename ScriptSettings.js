@@ -1,4 +1,14 @@
 /**
+ * @typedef {Object} PageSettings
+ * @property {number} Height
+ * @property {number} Width
+ * @property {number} TopMargin
+ * @property {number} RightMargin
+ * @property {number} BottomMargin
+ * @property {number} LeftMargin
+ */
+
+/**
  * @typedef {Object} ElementSetting
  * @property {string} Type
  * @property {number} AdornmentStyle
@@ -62,6 +72,8 @@
 
 export const DEFAULT_PAGE_WIDTH_INCHES = 8.5
 export const DEFAULT_PAGE_HEIGHT_INCHES = 11
+export const DEFAULT_PAGE_HEIGHT_PIXELS = DEFAULT_PAGE_HEIGHT_INCHES*96;
+export const DEFAULT_PAGE_WIDTH_PIXELS = DEFAULT_PAGE_WIDTH_INCHES*96
 export const DEFAULT_TOP_MARGIN_INCHES = 1
 export const DEFAULT_RIGHT_MARGIN_INCHES = 1
 export const DEFAULT_BOTTOM_MARGIN_INCHES = 1
@@ -156,6 +168,26 @@ export const DEFAULT_TRANSITIONS = new Set([
 ]);
 export const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
 export const NOTE_ELEMENTS = ["SCRIPTNOTE", "SCENEPROPERTIES"]
+
+/**
+ * 
+ * @param {Document} doc
+ * @returns {PageSettings} 
+ */
+export function LoadPageSettings(doc) {
+    /** @type {PageSettings} */
+    let res = {};
+    const PageLayoutEl = doc.getElementsByTagName("PageLayout")[0]
+    res.TopMargin = PageLayoutEl.getAttribute("TopMargin")
+    res.BottomMargin = PageLayoutEl.getAttribute("BottomMargin")
+    res.LeftMargin = POINTS_PER_INCH * 1.5;
+    res.RightMargin = POINTS_PER_INCH;
+
+    const PageSizeEl = PageLayoutEl.getElementsByTagName("PageSize")[0]
+    res.Height = PageSizeEl.getAttribute("Height")
+    res.Width = PageSizeEl.getAttribute("Width")
+    return res;
+}
 
 /**
  * @param {Document} doc 
