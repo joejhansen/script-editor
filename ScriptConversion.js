@@ -108,7 +108,7 @@ function scenePropertiesToHTML(note) {
     for (const CharArcBeat of CharacterArcBeats) {
         const NewCharArc = document.createElement("characterarcbeat")
         NewCharArc.dataset["Name"] = CharArcBeat.getAttribute("Name")
-        NewCharArc.textContent = CharArcBeat.getElementsByTagName("Text")[0].textContent;
+        NewCharArc.textContent = CharArcBeat.getElementsByTagName("Text")[0]?.textContent;
         NewSceneProperties.querySelector("content").appendChild(NewCharArc)
     }
     const NewUUID = window.crypto.randomUUID()

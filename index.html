@@ -12,12 +12,13 @@
 <body>
     <main>
         <div id="patch-notes">
-            <p>v0.31 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
+            <p>v0.34 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
                     Feedback</a>
             </p>
             <p>New in this version</p>
             <ul>
-                <li>Script Notes and Scene Properties to/from FDX. Editing to come in the future.</li>
+                <li>PDF download from mobile. Working on mobile view.</li>
+                <li>Starting on settings.</li>
             </ul>
             <p>Known bugs</p>
             <ul>
@@ -31,23 +32,26 @@
         <div id="header-menu">
             <div id="top-menu">
                 <input type="text" id="file-name">
-                <button id="element-type-btn" popovertarget="element-types">Scene Heading</button>
-                <div id="element-types" popover>
-                    <ul>
-                        <li><button>Action</button></li>
-                        <li><button>Character</button></li>
-                        <li><button>Dialogue</button></li>
-                        <li><button>Parenthetical</button></li>
-                        <li><button>Transition</button></li>
-                        <li><button>Shot</button></li>
-                        <li><button>Sequence</button></li>
-                        <li><button>New Act</button></li>
-                        <li><button>End of Act</button></li>
-                        <li><button>Cast List</button></li>
-                        <li><button>General</button></li>
-                    </ul>
+                <div id="top-btn-wrapper">
+
+                    <button id="element-type-btn" popovertarget="element-types">Scene Heading</button>
+                    <div id="element-types" popover>
+                        <ul>
+                            <li><button>Action</button></li>
+                            <li><button>Character</button></li>
+                            <li><button>Dialogue</button></li>
+                            <li><button>Parenthetical</button></li>
+                            <li><button>Transition</button></li>
+                            <li><button>Shot</button></li>
+                            <li><button>Sequence</button></li>
+                            <li><button>New Act</button></li>
+                            <li><button>End of Act</button></li>
+                            <li><button>Cast List</button></li>
+                            <li><button>General</button></li>
+                        </ul>
+                    </div>
+                    <button id="title-page-toggle">Edit Title Page</button>
                 </div>
-                <button id="title-page-toggle">Edit Title Page</button>
             </div>
             <div id="bottom-menu">
                 <ul id="bottom-menu-buttons">

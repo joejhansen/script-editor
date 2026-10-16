@@ -1,3 +1,4 @@
+import { getCurrentScale } from "./PageScaler.js";
 import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_MARGIN_INCHES, PIXELS_PER_INCH, getChildElementIndex } from "./ScriptSettings.js";
 
 /**
@@ -45,7 +46,8 @@ export function paginateScreenplay(elements, currentElement = null, lastCursorPo
     minWordsAfterSplit: 4,
     isKeepWithNext: null,
 }) {
-    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
+    // const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
+    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH * getCurrentScale();
 
     // Pass 1: measure everything in ONE reflow.
     const heights = measureHeights(elements, options, pageHeightPx);
@@ -225,7 +227,9 @@ const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
 
 function measureHeights(elements, options, maxPageHeightPx) {
     const sandbox = document.createElement('div');
-    Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none' });
+    Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none'});
+    sandbox.style.boxSizing = "border-box"
+    console.log(sandbox.style.boxSizing)
     const measurePage = createPage(options);
     Object.assign(measurePage.style, { height: 'auto', overflow: 'visible' });
     sandbox.appendChild(measurePage);
@@ -240,8 +244,8 @@ function measureHeights(elements, options, maxPageHeightPx) {
         let elementHeight = c.getBoundingClientRect().height
         currentPageHeight += elementHeight
         if (currentPageHeight > maxPageHeightPx) {
-            const maybePadding = getComputedStyle(c).paddingTop
-            elementHeight -= parseInt(maybePadding.substring(0, maybePadding.indexOf('p')))
+            // const maybePadding = getComputedStyle(c).paddingTop
+            // elementHeight -= parseInt(maybePadding.substring(0, maybePadding.indexOf('p')))
             // if (c.tagName !== "DIALOGUE") {
             // }
             currentPageHeight = elementHeight

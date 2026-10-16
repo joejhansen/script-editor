@@ -16,7 +16,7 @@
     --header-height: 1in;
     --page-scale: 1;
     --page-height: 11in;
-    --page-width:8.5in;
+    --page-width: 8.5in;
     --font-size: 12pt;
     font-weight: 400;
     color-scheme: light dark;
@@ -63,8 +63,8 @@ main {
 .page:not(:first-child)::before {
     content: counter(page) ".";
     position: absolute;
-    top: .5in;
-    right: 1in;
+    top: calc(.5in*var(--page-scale));
+    right: calc(1in*var(--page-scale));
 }
 
 .page {
@@ -76,7 +76,7 @@ main {
     line-height: 1;
     display: flex;
     flex-direction: column;
-    font-size: calc(12pt*var(--page-scale));
+    font-size: calc(var(--font-size)*var(--page-scale));
     outline: solid 1px var(--color-text);
     width: calc(var(--page-width)*var(--page-scale));
     height: calc(var(--page-height)*var(--page-scale));
@@ -84,7 +84,6 @@ main {
     z-index: var(--z-index-page);
     background-color: var(--color-page);
     margin-bottom: calc(1rem*var(--page-scale));
-    /* scale: min(1, var(--page-scale)) */
 }
 
 
@@ -127,6 +126,7 @@ button:hover {
     display: grid;
     grid-template-rows: auto auto;
     z-index: var(--z-index-ui);
+    /* overflow: scroll; */
 
     [popover] button {
         text-align: left;
@@ -139,16 +139,20 @@ button:hover {
     }
 
     >#top-menu {
-        display: grid;
-        grid-template-columns: repeat(3, auto);
-        justify-content: start;
-        gap: 1rem;
+        display: flex;
+        flex-direction: row;
+        /* display: grid; */
+        /* grid-template-columns: repeat(3, auto); */
+        /* justify-content: start; */
+        /* gap: 1rem; */
         margin: .5rem;
 
         #file-name {
             font-size: 1.75rem;
-            width: 25ch;
+            width: min(25ch, 95svw);
             border-bottom: solid 1px var(--color-text);
+            margin-right:.5rem;
+            /* height: 100%; */
         }
 
         #element-type-btn {
@@ -156,6 +160,7 @@ button:hover {
             anchor-name: --element-types;
             width: 15ch;
             font-size: 1.125rem;
+            height: 100%;
         }
 
         #element-types {
@@ -183,9 +188,10 @@ button:hover {
         }
 
         #title-page-toggle {
-            width: 16ch;
+            width: 20ch;
             border: solid var(--color-text) 1px;
-
+            height: 100%;
+            /* word-break: keep-all; */
         }
 
         #page-count {
@@ -206,9 +212,11 @@ button:hover {
         #bottom-menu-buttons {
             padding: initial;
             margin: 0;
-            display: grid;
-            justify-content: start;
-            grid-template-columns: repeat(7, auto);
+            /* display: grid; */
+            display: flex;
+            flex-direction: row;
+            /* justify-content: start; */
+            /* grid-template-columns: repeat(7, auto); */
 
             .option-menu {
                 position-anchor: --options-wrapper;
@@ -219,6 +227,7 @@ button:hover {
 
                 img {
                     margin: auto;
+                    max-height:48px;
                     /* height: calc(.5*var(--header-height)) */
                 }
 
@@ -230,9 +239,9 @@ button:hover {
                     margin: 0;
                 }
 
-                #github-logo {
-                    height: 48px;
-                }
+                /* #github-logo { */
+                    /* height: 48px; */
+                /* } */
 
                 ul,
                 ul>li,
@@ -413,9 +422,9 @@ dialogue {
     padding-left: calc(1in*var(--page-scale));
     padding-right: calc(1.5in*var(--page-scale));
 
-    &:first-child {
-        padding-top: calc(1rem*var(--page-scale));
-    }
+    /* &:first-child { */
+    /* padding-top: calc(1rem*var(--page-scale)); */
+    /* } */
 
     &::after {
         position: absolute;
@@ -491,7 +500,7 @@ sceneproperty {
         /* position: relative; */
         right: calc(-4rem*var(--page-scale));
         cursor: pointer;
-        height:calc(48px*var(--page-scale));
+        height: calc(48px*var(--page-scale));
         aspect-ratio: 1/1;
 
     }
@@ -568,13 +577,23 @@ continued {
 
 pagenum {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: calc(1rem*var(--page-scale));
+    right: calc(1rem*var(--page-scale));
     user-select: none;
 }
 
 titletext {
     position: relative;
+    text-indent: calc(var(--page-scale)*attr(data-textIndent type(<number>))*1in);
+    padding-left: calc(var(--page-scale)*attr(data-paddingLeft type(<number>))*1in);
+    padding-right: calc(var(--page-scale)*attr(data-paddingRight type(<number>))*1in);
+    padding-top: calc(var(--page-scale)*attr(data-paddingTop type(<number>))*1in);
+    line-height: calc(var(--page-scale)*attr(data-lineHeight type(<number>))*1rem);
+    right: calc(var(--page-scale)*attr(data-right type(<number>))*1in)
+}
+
+titletext::after {
+    content: calc(var(--page-scale)*var(--right))
 }
 
 #watermark-wrapper {
@@ -623,3 +642,44 @@ titletext {
         }
     }
 }
+
+@media only screen and (width <= 992px){
+    #header-menu{
+        >#top-menu{
+            flex-direction: column;
+            >input{
+                margin-bottom: .5rem;
+            }
+        }
+    }
+}
+@media only screen and (width <=768px) {
+    #header-menu {
+        width:100svw;
+        /* scale: var(--page-scale); */
+        >#top-menu {
+            /* align-items: center; */
+            #file-name, #element-type-btn, #title-page-toggle{
+                /* max-width:9% */
+            }
+        }
+
+        >#bottom-menu [popover] {
+
+        }
+
+        >#option-menu-wrapper {
+
+        }
+    }
+}
+/* 
+@media only screen and (width <=576px) {
+    #header-menu{
+        width: 100svw;
+        #top-menu{
+            width:100svw;
+            
+        }
+    }
+} */

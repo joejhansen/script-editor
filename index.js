@@ -14,7 +14,7 @@ import { XMLtoHTML, htmlToSceneProperties, htmlToScriptNote, parseXMLFromFile, p
 import { saveScrollPosition, restoreScrollPosition, getCursorPosition } from "./UX.js";
 import { getSceneLength, numAsClosestFraction, paginateScreenplay } from "./Pagination.js";
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js";
-import { scalePage } from "./PageScaler.js";
+import { forceScale, scalePage as autoScalePage } from "./PageScaler.js";
 
 const { PDFDocument, StandardFonts, rgb } = PDFLib
 const { fontkit } = window.fontkit
@@ -79,20 +79,27 @@ function getElementMaxWidth(el) {
  * @param {TitleTextStyles} styles 
  */
 function assignTitleTextStyles(el, styles) {
+    el.dataset.textIndent = styles.firstIndent;
+    el.dataset.paddingLeft = (1 - styles.leftIndent);
+    el.dataset.paddingRight = (1 + styles.rightindent - 8.5);
+    el.dataset.paddingTop = styles.spaceBefore
+    el.dataset.lineHeight = styles.spacing
     el.style.textAlign = styles.textAlign === "Full" ? "Left" : styles.textAlign;
-    el.style.textIndent = styles.firstIndent.toString() + "in";
-    el.style.paddingLeft = (1 - styles.leftIndent).toString() + "in";
-    el.style.paddingRight = (1 + styles.rightindent - 8.5).toString() + "in";
-    el.style.paddingTop = styles.spaceBefore.toString() + "in"
-    el.style.lineHeight = styles.spacing.toString() + "rem"
-    el.style.right = el.style.textAlign === "center" ? ".25in" : "0"
+    console.log(styles.textAlign === "Center")
+    el.dataset.right = styles.textAlign === "Center" ? 0.25 : 0
+    // el.style.textIndent = styles.firstIndent.toString() + "in";
+    // el.style.paddingLeft = (1 - styles.leftIndent).toString() + "in";
+    // el.style.paddingRight = (1 + styles.rightindent - 8.5).toString() + "in";
+    // el.style.paddingTop = styles.spaceBefore.toString() + "in"
+    // el.style.lineHeight = styles.spacing.toString() + "rem"
+    // el.style.right = el.style.textAlign === "center" ? ".25in" : "0"
 }
 
 /**
  * @param {Element} para 
  * @returns {TitleTextStyles}
  */
-function getTitleParagraphStyles(para) {
+function getTitleParagraphStyles(para) { // TODO: figure this out with respect to scale
     return {
         textAlign: para.getAttribute("Alignment"),
         firstIndent: parseInt(para.getAttribute("FirstIndent")),
@@ -1412,9 +1419,9 @@ async function downloadPDF(e) { // globals
     e.preventDefault()
     const LetterPageWidth = DEFAULT_PAGE_WIDTH_INCHES * POINTS_PER_INCH;
     const LetterPageHeight = DEFAULT_PAGE_HEIGHT_INCHES * POINTS_PER_INCH;
-    const button = event.target;
+    const button = e.target;
     button.disabled = true; // simple guard against double-click while generating
-
+    forceScale(1) // hacky, but it avoids manually calculating inverse scale for each element position which can be imprecise and look different between screen sizes.
     try {
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit); // needed even for standard fonts in some pdf-lib versions; harmless either way
@@ -1441,6 +1448,7 @@ async function downloadPDF(e) { // globals
         // Surface this to the user somehow — swallowing it silently will be confusing.
         alert('Something went wrong generating the PDF. Please try again.');
     } finally {
+        autoScalePage() // scale back to appropriate viewing size
         button.disabled = false;
     }
 }
@@ -1501,7 +1509,7 @@ function removeUndoIDs() { // globals
  * @param {Event} e 
  */
 function handleOnLoad(e) { // globals
-    scalePage()
+    autoScalePage()
     document.getElementsByClassName("option-menu")[0].showPopover()
 
     let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage, lastScriptNotes, lastSceneProperties, lastPageSettings] = tryGetLastScreenplay()
@@ -1563,6 +1571,7 @@ function handleElementPicker(e) {
     if (editingTitlePage) return
     const [el, currentPage] = getScriptElementAndCurrentPage(lastFocusedElement)
     changeElementTo(el, e.target.textContent.replace(/\s/g, "").toLowerCase(), currentPage)
+    document.getElementById("element-types").togglePopover();
 }
 /**
  * @param {Event} e 
@@ -1627,7 +1636,7 @@ document.getElementById("watermark-cancel").addEventListener("click", (e) => {
     document.getElementById("watermark-input").value = watermark
     WatermarkPopover.hidePopover();
 })
-window.addEventListener("resize",scalePage)
+window.addEventListener("resize", autoScalePage)
 
 /**
  * @typedef {object} ScrollElement
