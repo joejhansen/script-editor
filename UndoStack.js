@@ -25,7 +25,14 @@ export class UndoStack {
      * @param {boolean} singleAddLast
      * @param {number} lastUid
      */
-    constructor(limit = 50, undo = [], redo = [], singleDeleteLast = false, singleAddLast = false, lastUid = 0) {
+    constructor(
+        limit = 50,
+        undo = [],
+        redo = [],
+        singleDeleteLast = false,
+        singleAddLast = false,
+        lastUid = 0
+    ) {
         /** @type {Snapshot[]} */
         this.undo_ = undo;
         /** @type {Snapshot[]} */

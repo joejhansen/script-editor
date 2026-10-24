@@ -92,7 +92,6 @@ function handleKeyDown(event) { }
  */
 function handleClick(event) {
     event.stopPropagation();
-    console.log(event.target.textContent)
 }
 
 /**

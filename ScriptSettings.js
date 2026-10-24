@@ -72,8 +72,8 @@
 
 export const DEFAULT_PAGE_WIDTH_INCHES = 8.5
 export const DEFAULT_PAGE_HEIGHT_INCHES = 11
-export const DEFAULT_PAGE_HEIGHT_PIXELS = DEFAULT_PAGE_HEIGHT_INCHES*96;
-export const DEFAULT_PAGE_WIDTH_PIXELS = DEFAULT_PAGE_WIDTH_INCHES*96
+export const DEFAULT_PAGE_HEIGHT_PIXELS = DEFAULT_PAGE_HEIGHT_INCHES * 96;
+export const DEFAULT_PAGE_WIDTH_PIXELS = DEFAULT_PAGE_WIDTH_INCHES * 96
 export const DEFAULT_TOP_MARGIN_INCHES = 1
 export const DEFAULT_RIGHT_MARGIN_INCHES = 1
 export const DEFAULT_BOTTOM_MARGIN_INCHES = 1
@@ -170,8 +170,17 @@ export const AUTOCOMPLETE_TAGS = ["sceneheading", "character", "transition"]
 export const NOTE_ELEMENTS = ["SCRIPTNOTE", "SCENEPROPERTIES"]
 
 /**
+ * @param {string} tagStr 
+ * @returns {string}
+ */
+export function tagToFDXType(tagStr) {
+    return VALID_FDX_TYPES.at(HTML_TAG_NAMES.indexOf(tagStr.toLowerCase()))
+}
+
+/**
  * 
  * @param {Document} doc
+ * @param {Settings} settings
  * @returns {PageSettings} 
  */
 export function LoadPageSettings(doc) {
@@ -186,6 +195,7 @@ export function LoadPageSettings(doc) {
     const PageSizeEl = PageLayoutEl.getElementsByTagName("PageSize")[0]
     res.Height = PageSizeEl.getAttribute("Height")
     res.Width = PageSizeEl.getAttribute("Width")
+    // settings.PageSettings = res;
     return res;
 }
 
@@ -249,4 +259,31 @@ export function getChildElementIndex(child, parent) {
         if (parent.children[i] === child) return i;
     }
     return -1;
+}
+export class Settings {
+    /**
+     * @param {ElementSettings} scriptSettings 
+     * @param {PageSettings} pageSettings 
+     * @param {string} watermark 
+     * @param {ElementSettings} defaultScriptSettings 
+     * @param {PageSettings} defaultPageSettings 
+     */
+    constructor(
+        scriptSettings = {},
+        pageSettings = {},
+        watermark = "",
+        defaultScriptSettings = {},
+        defaultPageSettings = {}
+    ) {
+        /** @type {ElementSettings} */
+        this.ScriptSettings = scriptSettings
+        /** @type {PageSettings} */
+        this.PageSettings = pageSettings
+        /** @type {string} */
+        this.Watermark = watermark
+        /** @type {ElementSettings} */
+        this.DefaultScriptSettings = defaultScriptSettings
+        /** @type {PageSettings} */
+        this.DefaultPageSettings = defaultPageSettings
+    }
 }

@@ -229,7 +229,6 @@ function measureHeights(elements, options, maxPageHeightPx) {
     const sandbox = document.createElement('div');
     Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none'});
     sandbox.style.boxSizing = "border-box"
-    console.log(sandbox.style.boxSizing)
     const measurePage = createPage(options);
     Object.assign(measurePage.style, { height: 'auto', overflow: 'visible' });
     sandbox.appendChild(measurePage);

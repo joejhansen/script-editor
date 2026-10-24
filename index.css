@@ -18,6 +18,7 @@
     --page-height: 11in;
     --page-width: 8.5in;
     --font-size: 12pt;
+    --mobile-tab-height: 32px;
     font-weight: 400;
     color-scheme: light dark;
     font-synthesis: none;
@@ -39,11 +40,11 @@ body {
 }
 
 main {
+    position: relative;
     overflow: hidden;
     color: var(--color-text);
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
     height: 100svh;
 }
@@ -118,15 +119,21 @@ button:hover {
     background-color: var(--color-hover);
 }
 
+#mobile-header-anchor {
+    anchor-name: --mobile-anchor;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+
 #header-menu {
     color: var(--color-text);
-
+    background-color: inherit;
     anchor-name: --header-menu;
     width: 100svw;
     display: grid;
     grid-template-rows: auto auto;
     z-index: var(--z-index-ui);
-    /* overflow: scroll; */
 
     [popover] button {
         text-align: left;
@@ -138,33 +145,52 @@ button:hover {
         padding: 0;
     }
 
+    >#mobile-tab {
+        position: relative;
+        left: var(--mobile-tab-height);
+        display: none;
+        height: min-content;
+        width: min-content;
+        border: solid 1px var(--color-text);
+        border-top: none;
+        border-bottom-right-radius: 5px;
+        border-bottom-left-radius: 5px;
+        background-color: var(--color-primary);
+        padding: 0;
+        height: var(--mobile-tab-height);
+        aspect-ratio: 1/1;
+
+        >img {
+            height: var(--mobile-tab-height);
+            aspect-ratio: 1/1;
+        }
+    }
+
     >#top-menu {
+        background-color: var(--color-primary);
+
         display: flex;
         flex-direction: row;
-        /* display: grid; */
-        /* grid-template-columns: repeat(3, auto); */
-        /* justify-content: start; */
-        /* gap: 1rem; */
         margin: .5rem;
 
         #file-name {
             font-size: 1.75rem;
             width: min(25ch, 95svw);
             border-bottom: solid 1px var(--color-text);
-            margin-right:.5rem;
-            /* height: 100%; */
+            margin-right: .5rem;
         }
 
         #element-type-btn {
             border: solid 1px var(--color-text);
             anchor-name: --element-types;
-            width: 15ch;
+            width: max-content;
             font-size: 1.125rem;
             height: 100%;
         }
 
         #element-types {
             background-color: var(--color-primary);
+            width: max-content;
 
             li {
                 border-left: solid 1px var(--color-text);
@@ -180,7 +206,6 @@ button:hover {
             }
 
             position-anchor: --element-types;
-            width: anchor-size(--element-types width);
             top: anchor(--element-types bottom);
 
             left: anchor(--element-types left);
@@ -188,10 +213,9 @@ button:hover {
         }
 
         #title-page-toggle {
-            width: 20ch;
+            width: max-content;
             border: solid var(--color-text) 1px;
             height: 100%;
-            /* word-break: keep-all; */
         }
 
         #page-count {
@@ -208,15 +232,14 @@ button:hover {
 
     >#bottom-menu {
         border-bottom: solid var(--color-text) 1px;
+        background-color: var(--color-primary);
 
         #bottom-menu-buttons {
             padding: initial;
             margin: 0;
-            /* display: grid; */
             display: flex;
+            flex-wrap: wrap;
             flex-direction: row;
-            /* justify-content: start; */
-            /* grid-template-columns: repeat(7, auto); */
 
             .option-menu {
                 position-anchor: --options-wrapper;
@@ -227,21 +250,20 @@ button:hover {
 
                 img {
                     margin: auto;
-                    max-height:48px;
-                    /* height: calc(.5*var(--header-height)) */
+                    max-height: 48px;
                 }
 
                 >ul {
-                    display: grid;
+                    /* display: grid; */
+                    display: flex;
+                    flex-direction: row;
+                    flex-wrap: nowrap;
                 }
 
                 p {
                     margin: 0;
                 }
 
-                /* #github-logo { */
-                    /* height: 48px; */
-                /* } */
 
                 ul,
                 ul>li,
@@ -268,42 +290,6 @@ button:hover {
                     }
 
                 }
-
-
-            }
-
-            #file-popover>ul {
-                grid-template-columns: repeat(3, fit-content(16ch));
-            }
-
-            #edit-popover>ul {
-                grid-template-columns: repeat(9, fit-content(16ch));
-
-            }
-
-            #view-popover>ul {
-                grid-template-columns: repeat(2, fit-content(16ch));
-
-            }
-
-            #notes-popover>ul {
-                grid-template-columns: repeat(8, fit-content(16ch));
-
-            }
-
-            #format-popover>ul {
-                grid-template-columns: repeat(2, fit-content(25ch));
-
-            }
-
-            #production-popover>ul {
-                grid-template-columns: repeat(4, fit-content(16ch));
-
-            }
-
-            #help-popover>ul {
-                grid-template-columns: repeat(2, fit-content(16ch));
-
             }
         }
     }
@@ -319,11 +305,10 @@ button:hover {
 
 #script-upload {
     display: none;
-    /* hack to keep file input simple without showing the old ui */
 }
 
 #patch-notes {
-    position-anchor: --header-header;
+    position-anchor: --header-menu;
     position: absolute;
     width: 25ch;
     top: anchor(--header-menu bottom);
@@ -385,13 +370,6 @@ sceneheading::before {
 }
 
 
-/* sceneheading::after { */
-/* TODO: figure out how to do this because I'm already using the ::after for autocomplete suggestions*/
-/* content: counter(scene); */
-/* position: absolute; */
-/* right: 1in; */
-/* color:hotpink */
-/* } */
 
 shot {
     padding-top: calc(32px*var(--page-scale));
@@ -422,9 +400,6 @@ dialogue {
     padding-left: calc(1in*var(--page-scale));
     padding-right: calc(1.5in*var(--page-scale));
 
-    /* &:first-child { */
-    /* padding-top: calc(1rem*var(--page-scale)); */
-    /* } */
 
     &::after {
         position: absolute;
@@ -497,7 +472,6 @@ sceneproperty {
 
     img {
         position: absolute;
-        /* position: relative; */
         right: calc(-4rem*var(--page-scale));
         cursor: pointer;
         height: calc(48px*var(--page-scale));
@@ -506,8 +480,6 @@ sceneproperty {
     }
 
     >content {
-        /* display: flex; */
-        /* flex-direction: row; */
         background-color: var(--color-primary);
         outline: 1px solid var(--color-text);
         position: absolute;
@@ -524,11 +496,9 @@ sceneproperty {
 
     >content.active {
         display: block;
-        /* visibility: visible; */
     }
 
 
-    /* &:has()&::after */
 }
 
 action>scriptnote::after {
@@ -643,43 +613,66 @@ titletext::after {
     }
 }
 
-@media only screen and (width <= 992px){
-    #header-menu{
-        >#top-menu{
+@media only screen and (width <=992px) {
+    #header-menu {
+        >#top-menu {
             flex-direction: column;
-            >input{
+
+            >input {
                 margin-bottom: .5rem;
             }
         }
     }
 }
+
 @media only screen and (width <=768px) {
+    #script-main {
+        height: 100svh;
+    }
+
+    #patch-notes {
+        display: none
+    }
+
     #header-menu {
-        width:100svw;
-        /* scale: var(--page-scale); */
-        >#top-menu {
-            /* align-items: center; */
-            #file-name, #element-type-btn, #title-page-toggle{
-                /* max-width:9% */
+        position: absolute;
+        position-anchor: --mobile-anchor;
+        /* bottom: calc(anchor(--mobile-anchor bottom) - var(--mobile-tab-height)); */
+        /* left: anchor(--mobile-anchor left); */
+        transition: translate .5s ease-in-out allow-discrete;
+        translate: 0 calc(-2*var(--header-height) + 6px);
+
+        &.active {
+            translate: 0 0;
+
+            >#option-menu-wrapper {
+                /* translate: 0 0; */
+            }
+
+            >#bottom-menu [popover] {
+                translate: 0 0;
+
             }
         }
 
+        >#mobile-tab {
+            display: block;
+        }
+
+        >#top-menu {
+            margin: 0;
+        }
+
         >#bottom-menu [popover] {
+            translate: 0 calc(-2*var(--header-height) + 6px);
+
+            transition: translate .5s ease-in-out allow-discrete;
 
         }
 
         >#option-menu-wrapper {
-
+            /* translate: 0 calc(-2*var(--header-height));
+            transition: translate .5s ease-in-out allow-discrete; */
         }
     }
 }
-/* 
-@media only screen and (width <=576px) {
-    #header-menu{
-        width: 100svw;
-        #top-menu{
-            width:100svw;
-            
-        }
-    }
-} */
