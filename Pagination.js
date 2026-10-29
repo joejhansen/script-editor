@@ -227,7 +227,7 @@ const overflowsPage = (page, pageHeightPx) => page.scrollHeight > pageHeightPx;
 
 function measureHeights(elements, options, maxPageHeightPx) {
     const sandbox = document.createElement('div');
-    Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none'});
+    Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none' });
     sandbox.style.boxSizing = "border-box"
     const measurePage = createPage(options);
     Object.assign(measurePage.style, { height: 'auto', overflow: 'visible' });
@@ -344,6 +344,26 @@ function measureOne(el, scratch) {
     const h = scratch.lastElementChild.getBoundingClientRect().height;
     scratch.removeChild(scratch.lastElementChild);
     return h;
+}
+
+/**
+ * 
+ * @param {HTMLElement} el 
+ * @returns {HTMLElement}
+ */
+export function getLastSceneHeadingSlug(el) {
+    let currentPage = el.parentElement
+    let currentEl = el.nextSibling
+    while (currentPage !== null) {
+        while (currentEl !== null) {
+            if (currentEl.tagName === "SCENEHEADING") break;
+            currentEl = currentEl.previousSibling
+        }
+        if (currentEl?.tagName === "SCENEHEADING") break;
+        currentPage = currentPage.previousSibling
+        currentEl = currentPage?.lastChild
+    }
+    return currentEl
 }
 
 /**

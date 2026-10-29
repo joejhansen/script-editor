@@ -148,6 +148,15 @@
                                         src="img/material-icons/note_stack_add_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
                                     <p>Add</p>
                                 </button></li>
+                            <li><button id="scene-props-btn" popovertarget="scene-props-menu"><img src="" alt="">
+                                    <p>Scenes</p>
+                                </button></li>
+                            <li>
+                                <button id="script-notes-btn">
+                                    <img src="" alt="">
+                                    <p>Notes</p>
+                                </button>
+                            </li>
                             <li><button><img
                                         src="img/material-icons/comment_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
                                     <p>Comments</p>
@@ -237,7 +246,8 @@
             </div>
             <div id="option-menu-wrapper">
             </div>
-            <button id="mobile-tab"><img src="img/material-icons/menu_48dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt="" srcset=""></button>
+            <button id="mobile-tab"><img src="img/material-icons/menu_48dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt=""
+                    srcset=""></button>
         </div>
         <input type="file" id="script-upload" accept=".fdx" />
         <article id="script-main" contenteditable="true">
@@ -257,7 +267,6 @@
                             <div class="note-dateTime"></div>
                             <div class="note-dateModified"></div>
                             <div class="note-name"></div>
-                            <div class="note-type"></div>
                             <div class="note-content"></div>
                         </content>
                     </scriptnote>
@@ -277,7 +286,7 @@
                 </template>
             </sceneproperties>
         </notes>
-        <div id="watermark-wrapper" popover="auto">
+        <div id="watermark-wrapper" popover="auto" class="movable">
             <label for="watermark-input">Input Watermark</label>
             <input type="text" name="watermark-input" id="watermark-input">
             <div id="watermark-submit">
@@ -394,17 +403,19 @@
                     </ul>
                 </section>
 
-            </div>
+        </div>
             <aside id="confirm-bar">
                 <ul>
                     <li><button id="settings-cancel">Cancel</button></li>
                     <li><button id="settings-save">Save</button></li>
                 </ul>
             </aside>
-
         </template>
         <settings-panel popover id="settings-popover"></settings-panel>
-
+        <template id="template-scene-props">
+            <div></div>
+        </template>
+        
     </main>
     <script src="@pdf-lib-fontkit/fontkit.umd.min.js"></script>
     <script src="pdf-lib/pdf-lib.min.js"></script>

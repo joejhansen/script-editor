@@ -7,10 +7,10 @@ const { PDFDocument, StandardFonts, rgb } = PDFLib
 const { fontkit } = window.fontkit
 
 /** @typedef {`${string}-${string}-${string}-${string}-${string}`} UUIDString*/
-const ScriptNotesEL = document.getElementsByTagName("scriptnotes")[0]
-const ScriptNoteTemplate = ScriptNotesEL.getElementsByTagName("template")[0].content.querySelector("scriptnote")
-const ScenePropertiesEl = document.getElementsByTagName("sceneproperties")[0]
-const ScenePropertyTemplate = ScenePropertiesEl.getElementsByTagName("template")[0].content.querySelector("sceneproperty")
+export const ScriptNotesEL = document.getElementsByTagName("scriptnotes")[0]
+export const ScriptNoteTemplate = ScriptNotesEL.getElementsByTagName("template")[0].content.querySelector("scriptnote")
+export const ScenePropertiesEl = document.getElementsByTagName("sceneproperties")[0]
+export const ScenePropertyTemplate = ScenePropertiesEl.getElementsByTagName("template")[0].content.querySelector("sceneproperty")
 /** @type {HTMLElement | null} */
 let lastNoteOpened = null;
 /**

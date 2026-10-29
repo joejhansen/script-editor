@@ -1,6 +1,7 @@
-import { paginateScreenplay } from "./Pagination.js";
-import { loadBlankXMLDoc, loadDefaultSettings } from "./ScriptConversion.js";
-import { AUTOCOMPLETE_TAGS, DEFAULT_EXTENSIONS, DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS, DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, HTML_TAG_NAMES, PIXELS_PER_INCH, SCENE_INTRO_REGEX, tagToFDXType, TIME_OF_DAY_REGEX, VALID_FDX_TYPES } from "./ScriptSettings.js";
+import { stripCharacterExtenstion } from "./EventHandlers.js";
+import { getLastSceneHeadingSlug, getSceneLength, numAsClosestFraction, paginateScreenplay } from "./Pagination.js";
+import { handleOpenNote, loadBlankXMLDoc, loadDefaultSettings, ScenePropertiesEl, ScenePropertyTemplate } from "./ScriptConversion.js";
+import { AUTOCOMPLETE_TAGS, DEFAULT_EXTENSIONS, DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS, DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, getChildElementIndex, HTML_TAG_NAMES, PIXELS_PER_INCH, SCENE_INTRO_REGEX, tagToFDXType, TIME_OF_DAY_REGEX, VALID_FDX_TYPES } from "./ScriptSettings.js";
 import { UndoStack } from "./UndoStack.js";
 
 export const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward", "deleteByCut"]
@@ -236,7 +237,7 @@ export function pruneEmptyInlineNodes(root) {
  * @param {HTMLElement} currentPage 
  * @param {State} state
  */
-export function reformatScreenplay(currentElement, currentPage, scriptWrapper, state) {
+export function reformatScreenplay(currentElement, currentPage, scriptWrapper, state, fileNameInput) {
     const lastScrollPosition = saveScrollPosition(scriptWrapper);
     let lastCursorPosition = getCursorPosition(currentElement)
     // Fixing edge case of when currentElement doesn't exist after reformat, for split dialogue
@@ -252,7 +253,11 @@ export function reformatScreenplay(currentElement, currentPage, scriptWrapper, s
     for (const newPage of newPages) {
         scriptWrapper.appendChild(newPage)
     }
-
+    const lastSceneHeading = getLastSceneHeadingSlug(currentElement)
+    if (lastSceneHeading) {
+        if (!lastSceneHeading.dataset.noteID) attachSceneProperty(lastSceneHeading, generateSceneProperty(lastSceneHeading, state, scriptWrapper, fileNameInput))
+        else (updateSceneProperty(lastSceneHeading))
+    }
     setCursorPosition(currentElement, lastCursorPosition, state.Navigation)
     restoreScrollPosition(lastScrollPosition, scriptWrapper)
 }
@@ -396,4 +401,124 @@ export function changeElementTo(el, newType, currentPage, navigation) {
 
     setCursorPosition(newElement, lastCursorPosition, navigation)
     return newElement
+}
+
+export function generateSceneProperty(el, state, scriptWrapper, fileNameInput) {
+    // const [intro, location, time] = grabSceneInfo(el.textContent)
+    const length = numAsClosestFraction(getSceneLength(el), 8)
+    const lengthStr = length.whole + (length.numerator ? " " + length.numerator + "/" + length.denominator : "")
+    const pageNum = 1 + getChildElementIndex(getScriptElementAndCurrentPage(el, state, scriptWrapper, fileNameInput)[1], scriptWrapper)
+    // const 
+    const NewSceneProperties = document.importNode(ScenePropertyTemplate, true)
+    NewSceneProperties.getElementsByClassName("scene-prop-length")[0].textContent = `Length: ${lengthStr}`
+    NewSceneProperties.dataset['Length'] = lengthStr
+    
+    NewSceneProperties.getElementsByClassName("scene-prop-page")[0].textContent = `Page: ${pageNum}`
+    NewSceneProperties.dataset['Page'] = pageNum
+    NewSceneProperties.getElementsByClassName("scene-prop-title")[0].textContent = "Title: "
+    NewSceneProperties.dataset['Title'] = ""
+    return NewSceneProperties
+}
+
+export function attachSceneProperty(el, sceneProp) {
+    const NewUUID = window.crypto.randomUUID()
+    sceneProp.style.positionAnchor = "--" + NewUUID
+    sceneProp.style.top = `anchor(--${NewUUID} top)`
+    sceneProp.style.right = `anchor(--${NewUUID} right)`
+    sceneProp.querySelector("img").addEventListener("click", handleOpenNote)
+    sceneProp.dataset.noteID = NewUUID
+    sceneProp.id = NewUUID
+    ScenePropertiesEl.appendChild(sceneProp)
+    el.dataset.noteID = NewUUID
+    el.style.anchorName = "--" + NewUUID
+}
+
+export function updateSceneProperty(el, sceneProp) {
+    const thisSceneProp = document.getElementById(el.dataset.noteID)
+}
+
+/**
+ * 
+ * @param {string} str 
+ * @returns {[string, string, string]}
+ */
+function grabSceneInfo(str) {
+    let res = ["", "", ""]
+    if (!str.length) return res;
+    const firstPeriod = str.indexOf(". ")
+    if (firstPeriod !== -1) {
+        res[0] = str.substring(0, firstPeriod)
+    }
+    const lastDash = str.indexOf(" - ")
+    if (lastDash !== -1) {
+        res[2] = str.substring(lastDash + 3)
+    }
+    res[1] = str.substring(firstPeriod !== -1 ? firstPeriod + 2 : 0, lastDash !== -1 ? lastDash : undefined)
+    return res;
+}
+
+/**
+ * @param {HTMLElement} el
+ * @returns {Set<string>} 
+ */
+function getCharactersInScene(el) {
+    let res = new Set();
+    let currentEl = el.nextSibling
+    let currentPage = el.parentElement
+    while (currentPage !== null) {
+        while (currentEl !== null) {
+            if (currentEl.tagName === "SCENEHEADING") break;
+            else if (currentEl.tagName === "CHARACTER") {
+                let thisChar = stripCharacterExtenstion(currentEl.textContent);
+                thisChar = thisChar.charAt(0).toUpperCase() + thisChar.substring(1)
+                res.add(thisChar)
+            }
+            currentEl = currentEl.nextSibling
+        }
+        if (currentEl?.tagName === "SCENEHEADING") break;
+        currentPage = currentPage.nextSibling
+        currentEl = currentPage?.firstChild
+    }
+    return res;
+}
+
+export function dragElement(elmnt) {
+    var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    if (document.getElementById(elmnt.id + "header")) {
+        // if present, the header is where you move the DIV from:
+        document.getElementById(elmnt.id + "header").onmousedown = dragMouseDown;
+    } else {
+        // otherwise, move the DIV from anywhere inside the DIV:
+        elmnt.onmousedown = dragMouseDown;
+    }
+
+    function dragMouseDown(e) {
+        e = e || window.event;
+        e.preventDefault();
+        // get the mouse cursor position at startup:
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        // call a function whenever the cursor moves:
+        document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+        e = e || window.event;
+        e.preventDefault();
+        // calculate the new cursor position:
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        // set the element's new position:
+        elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+        elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+    }
+
+    function closeDragElement() {
+        // stop moving when mouse button is released:
+        document.onmouseup = null;
+        document.onmousemove = null;
+    }
 }

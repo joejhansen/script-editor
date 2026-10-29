@@ -101,6 +101,12 @@ main {
     background-color: inherit;
 }
 
+[popover].movable {
+    @starting-style {
+        top: 50%;
+        left: 50%
+    }
+}
 
 
 button,
@@ -499,6 +505,29 @@ sceneproperty {
     }
 
 
+}
+
+.notePopover {
+    position: absolute;
+    z-index: var(--z-index-notes);
+
+    >content {
+        background-color: var(--color-primary);
+        outline: 1px solid var(--color-text);
+        position: absolute;
+        right: 0px;
+        padding: 1rem;
+        display: none;
+        width: fit-content;
+
+        >div {
+            width: max-content;
+        }
+    }
+
+    >content.active {
+        display: block;
+    }
 }
 
 action>scriptnote::after {

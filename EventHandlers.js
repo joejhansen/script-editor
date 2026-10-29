@@ -2,10 +2,12 @@ import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js"
 import { saveCurrentScreenplay, tryGetLastScreenplay } from "./LocalStorage.js"
 import { scalePage } from "./PageScaler.js"
 import { paginateScreenplay } from "./Pagination.js"
+import { Script } from "./Script.js"
 import { getCharacterInfo, handleOpenNote, loadBlankXMLDoc, loadDefaultSettings, loadTitlePage, parseXMLFromFile, XMLtoHTML } from "./ScriptConversion.js"
 import { DEFAULT_PAGE_HEIGHT_INCHES, EXTENSION_REGEX, getChildElementIndex, LoadElSettings, LoadPageSettings, PIXELS_PER_INCH } from "./ScriptSettings.js"
+import { State } from "./State.js"
 import { UndoStack } from "./UndoStack.js"
-import { ALIGNMENT_SHORTCUT_KEYS, ALIGNMENT_SHORTCUT_TO_RULE, ARROW_KEYS, changeElementTo, DELETE_INPUT_TYPES, emptyElement, ensureLineHasContent, getCursorPosition, getScriptElementAndCurrentPage, handleAutocomplete, newBlankScript, newScriptElement, pruneEmptyInlineNodes, reformatScreenplay, removeUndoIDs, restoreScrollPosition, setCursorPosition, switchLastFocusedElement } from "./UX.js"
+import { ALIGNMENT_SHORTCUT_KEYS, ALIGNMENT_SHORTCUT_TO_RULE, ARROW_KEYS, attachSceneProperty, changeElementTo, DELETE_INPUT_TYPES, emptyElement, ensureLineHasContent, generateSceneProperty, getCursorPosition, getScriptElementAndCurrentPage, handleAutocomplete, newBlankScript, newScriptElement, pruneEmptyInlineNodes, reformatScreenplay, removeUndoIDs, restoreScrollPosition, setCursorPosition, switchLastFocusedElement } from "./UX.js"
 
 /**
 * @param {Event} e 
@@ -105,10 +107,10 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput) { //
  * @param {KeyboardEvent} event 
  * @param {State} state
  */
-export function handleKeyDown(event, state, scriptWrapper) {
+export function handleKeyDown(event, state, scriptWrapper, fileNameInput) {
     event.stopPropagation();
-    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper)
-    if (event.key === "Tab") handleTab(event, child, currentPage, state)
+    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
+    if (event.key === "Tab") handleTab(event, child, currentPage, state, scriptWrapper, fileNameInput)
     else if ((event.ctrlKey && event.key !== "Control") || (event.metaKey && event.key !== "MetaKey")) handleShortCut(event, child, currentPage, state, scriptWrapper)
 }
 
@@ -116,9 +118,9 @@ export function handleKeyDown(event, state, scriptWrapper) {
  * @param {KeyboardEvent} event
  * @param {State} state 
  */
-export function handleKeyUp(event, state, scriptWrapper, CurrentPageTracker) { // globals
+export function handleKeyUp(event, state, scriptWrapper, CurrentPageTracker, fileNameInput) { // globals
     event.stopPropagation();
-    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper)
+    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
     CurrentPageTracker.value = getChildElementIndex(currentPage, scriptWrapper) + 1
     if (ARROW_KEYS.includes(event.key)) handleArrowKeysUp(event, child, currentPage, state)
 }
@@ -141,15 +143,15 @@ function handleArrowKeysUp(e, el, page, state) { // globals
  * @param {InputEvent} event 
  * @param {State} state
  */
-export function handleBeforeInput(event, state, scriptWrapper, currentPageTracker) { // globals
+export function handleBeforeInput(event, state, scriptWrapper, currentPageTracker, fileNameInput) { // globals
     if (event.inputType === "insertParagraph") {
-        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper)
-        handleEnterKey(event, child, currentPage, state, scriptWrapper, currentPageTracker)
+        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
+        handleEnterKey(event, child, currentPage, state, scriptWrapper, currentPageTracker, fileNameInput)
     } else if (DELETE_INPUT_TYPES.includes(event.inputType)) {
-        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper)
+        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
         handleDeletion(event, child, currentPage, state, scriptWrapper)
     } else if (event.inputType === 'insertText' || event.inputType === 'insertFromPaste') {
-        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper)
+        const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
         if (!(child === state.Navigation.LastSnapshotElement && state.UndoStack.singleAddLast && event.inputType === "insertText")) {
             state.UndoStack.singleDeleteLast = false;
             state.Navigation.LastSnapshotElement = child;
@@ -167,8 +169,8 @@ export function handleBeforeInput(event, state, scriptWrapper, currentPageTracke
  * @param {InputEvent} event 
  * @param {State} state
  */
-export function handleInput(event, state, scriptWrapper) { // globals
-    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper)
+export function handleInput(event, state, scriptWrapper, fileNameInput) { // globals
+    const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
     const range = document.createRange();
     range.selectNodeContents(child)
     let newLineCount = range.getClientRects().length;
@@ -178,8 +180,8 @@ export function handleInput(event, state, scriptWrapper) { // globals
     if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {// edge case where all elements are empty with <br>
         newBlankScript(state, true)
     } else {
-        if ((state.Navigation.LastElementLineCount != newLineCount && state.Navigation.LastFocusedElement === child) || !state.Navigation.LastFocusedElement) reformatScreenplay(child, currentPage, scriptWrapper, state)
-        else if (DELETE_INPUT_TYPES.includes(event.inputType) && state.Navigation.LastFocusedElement !== child) reformatScreenplay(child, currentPage, scriptWrapper, state)
+        if ((state.Navigation.LastElementLineCount != newLineCount && state.Navigation.LastFocusedElement === child) || !state.Navigation.LastFocusedElement) reformatScreenplay(child, currentPage, scriptWrapper, state, fileNameInput)
+        else if (DELETE_INPUT_TYPES.includes(event.inputType) && state.Navigation.LastFocusedElement !== child) reformatScreenplay(child, currentPage, scriptWrapper, state, fileNameInput)
     }
 
     switchLastFocusedElement(child, state.Navigation);
@@ -194,7 +196,7 @@ export function handleInput(event, state, scriptWrapper) { // globals
  * @param {Element} currentPage
  * @param {State} state
  */
-function handleEnterKey(event, el, currentPage, state, scriptWrapper, currentPageTracker) { // globals
+function handleEnterKey(event, el, currentPage, state, scriptWrapper, currentPageTracker, fileNameInput) { // globals
     event.preventDefault()
     state.UndoStack.push(state.Navigation.EditingTitlePage, scriptWrapper)
 
@@ -206,7 +208,7 @@ function handleEnterKey(event, el, currentPage, state, scriptWrapper, currentPag
         let newElement = el.cloneNode(0);
         newElement.innerHTML = '<br>';
         currentPage.insertBefore(newElement, el)
-        if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT_INCHES) reformatScreenplay(el, currentPage, scriptWrapper, state)
+        if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT_INCHES) reformatScreenplay(el, currentPage, scriptWrapper, state, fileNameInput)
         currentPageTracker.value = getChildElementIndex(newElement.parentElement, scriptWrapper) + 1
         if (el.dataset.suggestion) el.dataset.suggestion = "";
         if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el, state.Script)
@@ -244,13 +246,17 @@ function handleEnterKey(event, el, currentPage, state, scriptWrapper, currentPag
     ensureLineHasContent(newElement)
 
     currentPage.insertBefore(newElement, el.nextSibling)
-    if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT_INCHES) reformatScreenplay(el, currentPage, scriptWrapper, state)
+    if (currentPage.scrollHeight > PIXELS_PER_INCH * DEFAULT_PAGE_HEIGHT_INCHES) reformatScreenplay(el, currentPage, scriptWrapper, state, fileNameInput)
     setCursorPosition(newElement, 0, state.Navigation)
     currentPageTracker.value = getChildElementIndex(newElement.parentElement, scriptWrapper) + 1
 
     if (el.dataset.suggestion) el.dataset.suggestion = "";
     if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el, state.Script)
     else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.innerHTML = el.innerHTML.toUpperCase();
+
+    if (el.tagName === "SCENEHEADING" && !el.dataset.noteID) {
+        attachSceneProperty(el, generateSceneProperty(el, state, scriptWrapper, fileNameInput))
+    }
 }
 
 /**
@@ -413,11 +419,11 @@ export function handlePaste(event, state, scriptWrapper) { // globals
  * @param {*} state 
  * @returns 
  */
-export function handleCut(event, state) { // globals
+export function handleCut(event, state, scriptWrapper) { // globals
     const selection = document.getSelection();
     if (selection.isCollapsed) return;
     event.preventDefault();
-    state.UndoStack.push(state.Navigation.EditingTitlePage, ScriptWrapper)
+    state.UndoStack.push(state.Navigation.EditingTitlePage, scriptWrapper)
     const range = selection.getRangeAt(0);
     const previousPos = range.startOffset
     const startContainer = range.startContainer;
@@ -464,9 +470,9 @@ function handleShortCut(event, el, currentPage, state, scriptWrapper) { // globa
  * @param {Element} currentPage
  * @param {State} state
  */
-function handleTab(event, el, currentPage, state) { // globals
+function handleTab(event, el, currentPage, state, scriptWrapper, fileNameInput) { // globals
     event.preventDefault();
-    state.UndoStack.push(state.Navigation.EditingTitlePage, ScriptWrapper)
+    state.UndoStack.push(state.Navigation.EditingTitlePage, scriptWrapper)
     if (el.dataset.suggestion) {
         el.textContent += el.dataset.suggestion
         el.dataset.suggestion = ""
@@ -506,6 +512,10 @@ function handleTab(event, el, currentPage, state) { // globals
             }
         }
     }
+    if (el.tagName === "SCENEHEADING" && !el.dataset.noteID && el.textContent) {
+        attachSceneProperty(el, generateSceneProperty(el, state, scriptWrapper, fileNameInput))
+    }
+
 }
 
 /** 
@@ -561,14 +571,14 @@ export function toggleEditTitlePage(e, state, scriptWrapper, titlePageButton) { 
  * @param {KeyboardEvent} e 
  * @param {Navigation} navigation
  */
-export function handlePageTracker(e, navigation) {
+export function handlePageTracker(e, navigation, scriptWrapper) {
     if (e.key !== "Enter") return;
     if (isNaN(parseInt(e.target.value))) return
     e.preventDefault();
     if (e.target.value <= 0) e.target.value = 1;
-    else if (e.target.value > ScriptWrapper.childElementCount) e.target.value = ScriptWrapper.childElementCount;
-    setCursorPosition(ScriptWrapper.children[e.target.value - 1].firstChild, 0, navigation)
-    restoreScrollPosition({ top: (e.target.value - 1) * (DEFAULT_PAGE_HEIGHT_INCHES * PIXELS_PER_INCH + DEFAULT_FONT_SIZE_PIXELS) + 1, left: 0 }, ScriptWrapper)
+    else if (e.target.value > scriptWrapper.childElementCount) e.target.value = scriptWrapper.childElementCount;
+    setCursorPosition(scriptWrapper.children[e.target.value - 1].firstChild, 0, navigation)
+    restoreScrollPosition({ top: (e.target.value - 1) * (DEFAULT_PAGE_HEIGHT_INCHES * PIXELS_PER_INCH + DEFAULT_FONT_SIZE_PIXELS) + 1, left: 0 }, scriptWrapper)
 }
 
 /**
@@ -576,9 +586,9 @@ export function handlePageTracker(e, navigation) {
  * @param {Event} e 
  * @param {State} state
  */
-export function handleElementPicker(e, state) {
+export function handleElementPicker(e, state, scriptWrapper, fileNameInput) {
     if (state.Navigation.EditingTitlePage) return
-    const [el, currentPage] = getScriptElementAndCurrentPage(state.Navigation.LastFocusedElement, state)
+    const [el, currentPage] = getScriptElementAndCurrentPage(state.Navigation.LastFocusedElement, state, scriptWrapper, fileNameInput)
     changeElementTo(el, e.target.textContent.replace(/\s/g, "").toLowerCase(), currentPage, state.Navigation)
     document.getElementById("element-types").togglePopover();
 }
@@ -616,7 +626,12 @@ export function handleMenuButtons(e) {
  */
 function addToCharacterSet(str, script) { // globals
     if (!str) return;
-    if (EXTENSION_REGEX.test(str)) str = str.substring(0, str.lastIndexOf('(')).trim();
+    str = stripCharacterExtenstion(str);
     str = str.charAt(0).toUpperCase() + str.substring(1)
     script.CharacterSet.add(str)
+}
+
+export function stripCharacterExtenstion(str) {
+    if (EXTENSION_REGEX.test(str)) return str.substring(0, str.lastIndexOf('(')).trim();
+    else return str
 }
