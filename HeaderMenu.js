@@ -1,4 +1,4 @@
-import styles from "/windows/header-menu/header-menu.css" with {type: "css" };
+import styles from "./windows/header-menu/header-menu.css" with {type: "css" };
 
 class HeaderMenu extends HTMLElement {
     static styles = styles;
