@@ -5,7 +5,7 @@ export class PopoverPanel extends HTMLElement {
         if (this.shadowRoot) return;
 
         const root = this.attachShadow({ mode: 'open' });
-        root.adoptedStyleSheets = [PopoverPanel.baseStyles, this.constructor.styles].filter(Boolean);
+        root.adoptedStyleSheets = [this.constructor.styles].filter(Boolean);
 
         const tpl = this.constructor.template
             ?? document.getElementById(this.constructor.templateId);

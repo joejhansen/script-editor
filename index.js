@@ -4,10 +4,10 @@ import { dragElement, newBlankScript } from "./UX.js";
 import { scalePage as autoScalePage } from "./PageScaler.js";
 import { State } from "./State.js";
 import { handleBeforeInput, handleCopy, handleCut, handleElementPicker, handleFileInput, handleInput, handleKeyDown, handleKeyUp, handleMenuButtons, handleOnClick, handleOnLoad, handlePageTracker, handlePaste, handleVisibilityChange, toggleEditTitlePage } from "./EventHandlers.js";
-
+const HeaderMenu = document.querySelector("header-menu")
 const ScriptWrapper = document.getElementById("script-main");
-const FileNameInput = document.getElementById("file-name")
-const TitlePageButton = document.getElementById("title-page-toggle")
+const FileNameInput = HeaderMenu.shadowRoot?.getElementById("file-name")
+const TitlePageButton = HeaderMenu.shadowRoot?.getElementById("title-page-toggle")
 const CurrentPageTracker = document.getElementById("current-page")
 const ScenePropertiesEl = document.getElementsByTagName("sceneproperties")[0]
 const ScriptNotesEl = document.getElementsByTagName("scriptnotes")[0]
@@ -20,7 +20,7 @@ for (let optMenuBtn of document.getElementsByClassName("option-menu-button")) {
 }
 
 window.addEventListener("load", (e) => handleOnLoad(e, state, ScriptWrapper, ScenePropertiesEl, ScriptNotesEl, FileNameInput))
-window.addEventListener("visibilitychange", (e) => handleVisibilityChange(e, state, ScriptWrapper, FileNameInput, ScriptNotesEl, ScenePropertiesEl))
+window.addEventListener("visibilitychange", (e) => handleVisibilityChange(e, state, ScriptWrapper, FileNameInput))
 window.addEventListener("resize", autoScalePage)
 ScriptWrapper.addEventListener("keydown", (e) => handleKeyDown(e, state, ScriptWrapper, FileNameInput))
 ScriptWrapper.addEventListener("keyup", (e) => handleKeyUp(e, state, ScriptWrapper, CurrentPageTracker, FileNameInput))
@@ -33,17 +33,17 @@ ScriptWrapper.addEventListener("copy", handleCopy)
 TitlePageButton.addEventListener("click", (e) => toggleEditTitlePage(e, state, ScriptWrapper, TitlePageButton))
 CurrentPageTracker.addEventListener("keydown", (e) => handlePageTracker(e, state, ScriptWrapper))
 document.getElementById("script-upload").addEventListener("change", (e) => handleFileInput(e, state, ScriptWrapper, FileNameInput))
-document.getElementById("download-fdx").addEventListener("click", (e) => downloadFDX(e, state, TitlePageButton, FileNameInput))
-document.getElementById("download-pdf").addEventListener('click', (e) => downloadPDF(e, state.Navigation, TitlePageButton, FileNameInput))
-document.getElementById("new-blank").addEventListener("click", (e) => newBlankScript(state, ScriptWrapper, FileNameInput))
-document.getElementById("menu-button-open").addEventListener("click", (e) => document.getElementById("script-upload").click())
-document.getElementById("undo-button").addEventListener("click", (e) => state.UndoStack.undo(state.Navigation.EditingTitlePage, ScriptWrapper))
-document.getElementById("redo-button").addEventListener("click", (e) => state.UndoStack.redo(state.Navigation.EditingTitlePage, ScriptWrapper))
-document.getElementById("element-types").addEventListener("click", (e) => handleElementPicker(e, state, ScriptWrapper, FileNameInput))
-document.getElementById("copy-button").addEventListener("click", handleCopy)
-document.getElementById("cut-button").addEventListener("click", (e) => handleCut(e, ScriptWrapper))
-document.getElementById("paste-button").addEventListener("click", (e) => handlePaste(e, state, ScriptWrapper))
-document.getElementById("mobile-tab").addEventListener("click", (e) => document.getElementById("header-menu").classList.toggle("active"))
+HeaderMenu.shadowRoot?.getElementById("download-fdx").addEventListener("click", (e) => downloadFDX(e, state, TitlePageButton, FileNameInput))
+HeaderMenu.shadowRoot?.getElementById("download-pdf").addEventListener('click', (e) => downloadPDF(e, state.Navigation, TitlePageButton, FileNameInput))
+HeaderMenu.shadowRoot?.getElementById("new-blank").addEventListener("click", (e) => newBlankScript(state, ScriptWrapper, FileNameInput))
+HeaderMenu.shadowRoot?.getElementById("menu-button-open").addEventListener("click", (e) => document.getElementById("script-upload").click())
+HeaderMenu.shadowRoot?.getElementById("undo-button").addEventListener("click", (e) => state.UndoStack.undo(state.Navigation.EditingTitlePage, ScriptWrapper))
+HeaderMenu.shadowRoot?.getElementById("redo-button").addEventListener("click", (e) => state.UndoStack.redo(state.Navigation.EditingTitlePage, ScriptWrapper))
+HeaderMenu.shadowRoot?.getElementById("element-types").addEventListener("change", (e) => handleElementPicker(e, state, ScriptWrapper, FileNameInput))
+HeaderMenu.shadowRoot?.getElementById("copy-button").addEventListener("click", handleCopy)
+HeaderMenu.shadowRoot?.getElementById("cut-button").addEventListener("click", (e) => handleCut(e, ScriptWrapper))
+HeaderMenu.shadowRoot?.getElementById("paste-button").addEventListener("click", (e) => handlePaste(e, state, ScriptWrapper))
+// document.getElementById("mobile-tab").addEventListener("click", (e) => document.getElementById("header-menu").classList.toggle("active"))
 
 document.getElementById("watermark-save").addEventListener("click", (e) => {
     state.Settings.Watermark = document.getElementById("watermark-input").value

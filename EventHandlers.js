@@ -1,9 +1,10 @@
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js"
 import { saveCurrentScreenplay, tryGetLastScreenplay } from "./LocalStorage.js"
+import { Notes } from "./Notes.js"
 import { scalePage } from "./PageScaler.js"
 import { paginateScreenplay } from "./Pagination.js"
 import { Script } from "./Script.js"
-import { getCharacterInfo, handleOpenNote, loadBlankXMLDoc, loadDefaultSettings, loadTitlePage, parseXMLFromFile, XMLtoHTML } from "./ScriptConversion.js"
+import { getCharacterInfo, handleToggleNote, loadBlankXMLDoc, loadDefaultSettings, loadTitlePage, parseXMLFromFile, XMLtoHTML } from "./ScriptConversion.js"
 import { DEFAULT_PAGE_HEIGHT_INCHES, EXTENSION_REGEX, getChildElementIndex, LoadElSettings, LoadPageSettings, PIXELS_PER_INCH } from "./ScriptSettings.js"
 import { State } from "./State.js"
 import { UndoStack } from "./UndoStack.js"
@@ -15,16 +16,20 @@ import { ALIGNMENT_SHORTCUT_KEYS, ALIGNMENT_SHORTCUT_TO_RULE, ARROW_KEYS, attach
 */
 export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptNotesEl, fileNameInput) { // globals
     scalePage()
-    document.getElementsByClassName("option-menu")[0].showPopover()
+    // document.getElementsByClassName("option-menu")[0].showPopover()
 
-    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage, lastScriptNotes, lastSceneProperties, lastPageSettings] = tryGetLastScreenplay()
+    let [ok, lastScript, lastSettings, lastXMLDoc, lastFileName, lastCharacterSet, lastScrollPosition, lastCursorPosition, lastTitlePage,
+        // lastScriptNotes,
+        //  lastSceneProperties, 
+        lastPageSettings,
+        lastNotes] = tryGetLastScreenplay()
     if (ok) {
         scriptWrapper.innerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
         state.Script.ScriptInnerHTML = lastScript ? lastScript : `<div class="page"><sceneheading><br></sceneheading></div>`
-        scenePropertiesEl.innerHTML = lastSceneProperties;
-        state.Script.ScenePropertiesInnerHTML = lastSceneProperties ? lastSceneProperties : "";
-        scriptNotesEl.innerHTML = lastScriptNotes
-        state.Script.ScriptNotesInnerHTML = lastScriptNotes ? lastScriptNotes : "";
+        // scenePropertiesEl.innerHTML = lastSceneProperties;
+        // state.Script.ScenePropertiesInnerHTML = lastSceneProperties ? lastSceneProperties : "";
+        // scriptNotesEl.innerHTML = lastScriptNotes
+        // state.Script.ScriptNotesInnerHTML = lastScriptNotes ? lastScriptNotes : "";
         state.Script.TitlePageOuterHTML = lastTitlePage;
         if (lastSettings) {
             state.Settings.ScriptSettings = lastSettings;
@@ -49,6 +54,7 @@ export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptN
         const maybeLastFocused = document.getElementsByClassName("lastFocused")[0];
         if (maybeLastFocused) switchLastFocusedElement(maybeLastFocused, state.Navigation)
         else switchLastFocusedElement(scriptWrapper.firstChild.firstChild, state.Navigation)
+        if (lastNotes) state.Notes = Notes.fromSave(lastNotes)
 
         if (lastScrollPosition) {
             state.Navigation.LastScrollPosition = lastScrollPosition;
@@ -65,8 +71,8 @@ export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptN
         newBlankScript(state);
     }
     for (const Note of [...document.getElementsByTagName("scriptnote"), ...document.getElementsByTagName("sceneproperty")]) {
-        Note.querySelector("img").addEventListener("click", handleOpenNote)
-        Note.querySelector("content").classList.remove("active")
+        Note.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, state.Notes))
+        // Note.querySelector("content").classList.remove("active")
     }
 }
 
@@ -90,7 +96,7 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput) { //
         state.Settings.ScriptSettings = LoadElSettings(doc);
         state.Script.CharacterSet = getCharacterInfo(doc);
         state.Script.TitlePageOuterHTML = loadTitlePage(doc).map(e => e.outerHTML).join('')
-        const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc));
+        const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc, state.Notes));
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
         }
@@ -254,9 +260,9 @@ function handleEnterKey(event, el, currentPage, state, scriptWrapper, currentPag
     if (el.textContent && el.tagName === "CHARACTER") handleUnfocusCharacter(el, state.Script)
     else if (el.textContent && ["SHOT", "TRANSITION", "SCENEHEADING"].includes(el.tagName)) el.innerHTML = el.innerHTML.toUpperCase();
 
-    if (el.tagName === "SCENEHEADING" && !el.dataset.noteID) {
-        attachSceneProperty(el, generateSceneProperty(el, state, scriptWrapper, fileNameInput))
-    }
+    // if (el.tagName === "SCENEHEADING" && !el.dataset.noteID) {
+    //     attachSceneProperty(el, generateSceneProperty(el, state, scriptWrapper, fileNameInput), state.Notes)
+    // }
 }
 
 /**
@@ -447,8 +453,8 @@ function handleShortCut(event, el, currentPage, state, scriptWrapper) { // globa
     const key = event.key.toLowerCase();
     if (STYLE_CLASSES[key]) { state.UndoStack.push(state.Navigation.EditingTitlePage, scriptWrapper); handleTextStyling(event, scriptWrapper) }
     else if (key === "o") { event.preventDefault(); document.getElementById("script-upload").click() }
-    else if (key === "p") { event.preventDefault(); document.getElementById("download-pdf").click() }
-    else if (key === "s") { event.preventDefault(); document.getElementById("download-fdx").click() }
+    else if (key === "p") { event.preventDefault(); document.querySelector("header-menu").shadowRoot?.getElementById("download-pdf").click() }
+    else if (key === "s") { event.preventDefault(); document.querySelector("header-menu").shadowRoot?.getElementById("download-fdx").click() }
     else if (key === "z") handleUndo(event, state, scriptWrapper);
     else if (key === "y") handleRedo(event, state, scriptWrapper);
     else if (state.Navigation.EditingTitlePage && ALIGNMENT_SHORTCUT_KEYS.includes(key)) handleTitleAlignment(event, el, currentPage)
@@ -512,9 +518,9 @@ function handleTab(event, el, currentPage, state, scriptWrapper, fileNameInput) 
             }
         }
     }
-    if (el.tagName === "SCENEHEADING" && !el.dataset.noteID && el.textContent) {
-        attachSceneProperty(el, generateSceneProperty(el, state, scriptWrapper, fileNameInput))
-    }
+    // if (el.tagName === "SCENEHEADING" && !el.dataset.noteID && el.textContent) {
+    //     attachSceneProperty(el, generateSceneProperty(el, state, scriptWrapper, fileNameInput), state.Notes)
+    // }
 
 }
 
@@ -589,14 +595,14 @@ export function handlePageTracker(e, navigation, scriptWrapper) {
 export function handleElementPicker(e, state, scriptWrapper, fileNameInput) {
     if (state.Navigation.EditingTitlePage) return
     const [el, currentPage] = getScriptElementAndCurrentPage(state.Navigation.LastFocusedElement, state, scriptWrapper, fileNameInput)
-    changeElementTo(el, e.target.textContent.replace(/\s/g, "").toLowerCase(), currentPage, state.Navigation)
-    document.getElementById("element-types").togglePopover();
+    changeElementTo(el, e.target.value.replace(/\s/g, "").toLowerCase(), currentPage, state.Navigation)
+    // document.getElementById("element-types").togglePopover();
 }
 /**
  * @param {Event} e 
  * @param {State} state
  */
-export function handleVisibilityChange(e, state, scriptWrapper, fileNameInput, scriptNotesEl, scenePropertiesEl) {
+export function handleVisibilityChange(e, state, scriptWrapper, fileNameInput) {
     saveCurrentScreenplay(
         e,
         state.Script.OriginalXML,
@@ -608,9 +614,10 @@ export function handleVisibilityChange(e, state, scriptWrapper, fileNameInput, s
         fileNameInput,
         state.Script.CharacterSet,
         state.Navigation.LastFocusedElement,
-        scriptNotesEl,
-        scenePropertiesEl,
-        state.Settings.PageSettings
+        // scriptNotesEl,
+        // scenePropertiesEl,
+        state.Settings.PageSettings,
+        state.Notes
     )
 }
 

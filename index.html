@@ -13,13 +13,12 @@
     <main>
         <div id="mobile-header-anchor"></div>
         <div id="patch-notes">
-            <p>v0.34 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
+            <p>v0.37 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
                     Feedback</a>
             </p>
             <p>New in this version</p>
             <ul>
-                <li>PDF download from mobile. Working on mobile view.</li>
-                <li>Starting on settings.</li>
+                <li>New and improved UI</li>
             </ul>
             <p>Known bugs</p>
             <ul>
@@ -29,226 +28,7 @@
                 <li>Scene count doesn't appear on right side of scene headings</li>
             </ul>
         </div>
-
-        <div id="header-menu">
-            <div id="top-menu">
-                <input type="text" id="file-name">
-                <div id="top-btn-wrapper">
-
-                    <button id="element-type-btn" popovertarget="element-types">Scene Heading</button>
-                    <div id="element-types" popover>
-                        <ul>
-                            <li><button>Action</button></li>
-                            <li><button>Character</button></li>
-                            <li><button>Dialogue</button></li>
-                            <li><button>Parenthetical</button></li>
-                            <li><button>Transition</button></li>
-                            <li><button>Shot</button></li>
-                            <li><button>Sequence</button></li>
-                            <li><button>New Act</button></li>
-                            <li><button>End of Act</button></li>
-                            <li><button>Cast List</button></li>
-                            <li><button>General</button></li>
-                        </ul>
-                    </div>
-                    <button id="title-page-toggle">Edit Title Page</button>
-                </div>
-            </div>
-            <div id="bottom-menu">
-                <ul id="bottom-menu-buttons">
-                    <li><button id="file-menu-button" class="option-menu-button"
-                            popovertarget="file-popover">File</button></li>
-                    <div id="file-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><button id="new-blank"><img
-                                        src="img/material-icons/draft_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt=""
-                                        srcset="">
-                                    <p>New</p>
-                                </button></li>
-                            <li><button id="menu-button-open"><img
-                                        src="img/material-icons/folder_open_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Open</p>
-                                </button></li>
-                            <li id="download-as-btn"><img
-                                    src="img/material-icons/download_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt=""
-                                    srcset="">
-                                <p>Download as</p>
-                                <ul>
-                                    <li><button id="download-fdx">FDX</button></li>
-                                    <li><button id="download-pdf">PDF</button></li>
-                                </ul>
-                            </li>
-                            <!-- <div id="download-as-popover" popover="hint"> -->
-                            <!-- </div> -->
-                        </ul>
-                    </div>
-                    <li><button id="edit-menu-button" class="option-menu-button"
-                            popovertarget="edit-popover">Edit</button></li>
-                    <div id="edit-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><button id="copy-button"><img
-                                        src="img/material-icons/content_copy_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Copy</p>
-                                </button></li>
-                            <li><button id="cut-button"><img
-                                        src="img/material-icons/content_cut_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Cut</p>
-                                </button></li>
-                            <li><button id="paste-button"><img
-                                        src="img/material-icons/content_paste_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Paste</p>
-                                </button></li>
-                            <li><button id="undo-button"><img
-                                        src="img/material-icons/undo_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Undo</p>
-                                </button></li>
-                            <li><button id="redo-button"><img
-                                        src="img/material-icons/redo_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Redo</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/format_color_text_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Font</p>
-                                </button></li>
-                            <li><button popovertarget="watermark-wrapper"><img
-                                        src="img/material-icons/branding_watermark_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Watermark</p>
-                                </button></li>
-                            <li><button><img src="img/material-icons/group_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Edit Together</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/find_replace_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Replace</p>
-                                </button></li>
-                        </ul>
-                    </div>
-                    <li><button id="view-menu-button" class="option-menu-button"
-                            popovertarget="view-popover">View</button></li>
-                    <div id="view-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><button><img
-                                        src="img/material-icons/manage_search_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Find</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/arrow_forward_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Go To</p>
-                                </button></li>
-                        </ul>
-                    </div>
-                    <li><button id="notes-menu-button" class="option-menu-button"
-                            popovertarget="notes-popover">Notes</button></li>
-                    <div id="notes-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><button><img
-                                        src="img/material-icons/note_stack_add_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Add</p>
-                                </button></li>
-                            <li><button id="scene-props-btn" popovertarget="scene-props-menu"><img src="" alt="">
-                                    <p>Scenes</p>
-                                </button></li>
-                            <li>
-                                <button id="script-notes-btn">
-                                    <img src="" alt="">
-                                    <p>Notes</p>
-                                </button>
-                            </li>
-                            <li><button><img
-                                        src="img/material-icons/comment_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Comments</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/cadence_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Beats</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/show_chart_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Structure Points</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/bookmark_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Bookmarks</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/sound_detection_loud_sound_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>SFX</p>
-                                </button></li>
-                            <li><button><img src="img/material-icons/camera_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>VFX</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/sword_rose_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg">
-                                    <p>Props</p>
-                                </button></li>
-                        </ul>
-                    </div>
-                    <li><button id="format-menu-button" class="option-menu-button"
-                            popovertarget="format-popover">Format</button></li>
-                    <div id="format-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><button popovertarget="settings-popover" id="btn-settings"><img
-                                        src="img/material-icons/straighten_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Page & Element Settings</p>
-                                </button></li>
-                            <!-- <li><button><img src="img/material-icons/padding_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Change Page Formatting</p>
-                                </button></li> -->
-                        </ul>
-                    </div>
-                    <li><button id="production-menu-button" class="option-menu-button"
-                            popovertarget="production-popover">Production</button></li>
-                    <div id="production-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><button><img src="img/material-icons/list_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>List</p>
-                                </button></li>
-                            <li><button><img src="img/material-icons/percent_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Statistics</p>
-                                </button></li>
-                            <li><button><img
-                                        src="img/material-icons/attach_money_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                        alt="" srcset="">
-                                    <p>Budgeting</p>
-                                </button></li>
-                            <li><a href="https://www.wgawregistry.org/register.aspx" target="_blank"><button><img
-                                            src="img/material-icons/contract_edit_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                            alt="" srcset="">
-                                        <p>Register with WGA</p>
-                                    </button></a></li>
-                        </ul>
-                    </div>
-                    <li><button id="help-menu-button" class="option-menu-button"
-                            popovertarget="help-popover">Help</button></li>
-                    <div id="help-popover" class="option-menu" popover="manual">
-                        <ul>
-                            <li><a href="https://github.com/joejhansen/script-editor/blob/main/README.md"
-                                    target="_blank"><button><img
-                                            src="img/material-icons/description_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg"
-                                            alt="" srcset="">
-                                        <p>README.md</p>
-                                    </button></a></li>
-                            <li><a href="https://github.com/joejhansen/script-editor" target="_blank"><button><img
-                                            id="github-logo" src="img/github/GitHub_Invertocat_Black.svg"
-                                            alt="GitHub logo" srcset="">
-                                        <p>Github</p>
-                                    </button></a></li>
-                        </ul>
-                    </div>
-                </ul>
-            </div>
-            <div id="option-menu-wrapper">
-            </div>
-            <button id="mobile-tab"><img src="img/material-icons/menu_48dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt=""
-                    srcset=""></button>
-        </div>
+        <header-menu></header-menu>
         <input type="file" id="script-upload" accept=".fdx" />
         <article id="script-main" contenteditable="true">
             <div class="page">
@@ -260,15 +40,6 @@
                 <template>
                     <scriptnote>
                         <img src="img/material-icons/ink_pen_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt="">
-                        <content>
-                            <div class="note-type"></div>
-                            <div class="note-author"></div>
-                            <div class="note-color"></div>
-                            <div class="note-dateTime"></div>
-                            <div class="note-dateModified"></div>
-                            <div class="note-name"></div>
-                            <div class="note-content"></div>
-                        </content>
                     </scriptnote>
                 </template>
             </scriptnotes>
@@ -276,12 +47,6 @@
                 <template>
                     <sceneproperty>
                         <img src="img/material-icons/ink_pen_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg" alt="">
-                        <content>
-                            <div class="scene-prop-length"></div>
-                            <div class="scene-prop-page"></div>
-                            <div class="scene-prop-title"></div>
-                            <div class="scene-prop-content"></div>
-                        </content>
                     </sceneproperty>
                 </template>
             </sceneproperties>
@@ -403,7 +168,7 @@
                     </ul>
                 </section>
 
-        </div>
+            </div>
             <aside id="confirm-bar">
                 <ul>
                     <li><button id="settings-cancel">Cancel</button></li>
@@ -411,16 +176,20 @@
                 </ul>
             </aside>
         </template>
-        <settings-panel popover id="settings-popover"></settings-panel>
+        <template id="template-header">
+            <div class="titlebar"><input type="text" id="file-name"></input></div>
+            <div class="tabs" role="tablist" aria-label="Ribbon tabs" id="tabs"></div>
+            <div class="ribbon" id="ribbon"></div>
+        </template>
         <template id="template-scene-props">
             <div></div>
         </template>
-        
+
     </main>
     <script src="@pdf-lib-fontkit/fontkit.umd.min.js"></script>
     <script src="pdf-lib/pdf-lib.min.js"></script>
+    <script src="HeaderMenu.js" type="module"></script>
     <script src="index.js" type="module" defer></script>
-    <script src="SettingsPopover.js" type="module"></script>
 </body>
 
 </html>

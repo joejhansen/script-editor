@@ -1,7 +1,8 @@
 import { stripCharacterExtenstion } from "./EventHandlers.js";
 import { getLastSceneHeadingSlug, getSceneLength, numAsClosestFraction, paginateScreenplay } from "./Pagination.js";
-import { handleOpenNote, loadBlankXMLDoc, loadDefaultSettings, ScenePropertiesEl, ScenePropertyTemplate } from "./ScriptConversion.js";
+import { handleToggleNote, loadBlankXMLDoc, loadDefaultSettings, ScenePropertiesEl, ScenePropertyTemplate } from "./ScriptConversion.js";
 import { AUTOCOMPLETE_TAGS, DEFAULT_EXTENSIONS, DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS, DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, getChildElementIndex, HTML_TAG_NAMES, PIXELS_PER_INCH, SCENE_INTRO_REGEX, tagToFDXType, TIME_OF_DAY_REGEX, VALID_FDX_TYPES } from "./ScriptSettings.js";
+import { State } from "./State.js";
 import { UndoStack } from "./UndoStack.js";
 
 export const DELETE_INPUT_TYPES = ["deleteContentForward", "deleteContentBackward", "deleteWordForward", "deleteWordBackward", "deleteByCut"]
@@ -131,29 +132,16 @@ export function switchLastFocusedElement(el, navigation) { // globals
  * @returns 
  */
 function handleElementPickerUI(el, navigation) { // globals
-    if (navigation.EditingTitlePage) return;
-    const changeElTopButton = document.getElementById("element-type-btn")
-    if (el.tagName === changeElTopButton.textContent.replace(/\s/g, "").toUpperCase()) return
-    const elTypeUl = document.getElementById("element-types").children[0]
-    const newButtonToSlot = document.createElement("button")
-    const newLi = document.createElement("li")
-    newLi.appendChild(newButtonToSlot)
-    newButtonToSlot.textContent = changeElTopButton.textContent;
-    newButtonToSlot.dataset.order = changeElTopButton.dataset.order;
-    changeElTopButton.textContent = tagToFDXType(el.tagName)
-    let elToRemove = null;
-    for (let elTypeLi of elTypeUl.children) {
-        if (VALID_FDX_TYPES.indexOf(elTypeLi.children[0].textContent) > VALID_FDX_TYPES.indexOf(newButtonToSlot.textContent) && !newLi.parentElement) {
-            elTypeLi.parentElement.insertBefore(newLi, elTypeLi)
-        }
-        if (elTypeLi.children[0].textContent === tagToFDXType(el.tagName)) {
-            elToRemove = elTypeLi
+    /**
+     * @type {HTMLSelectElement}
+     */
+    const changeElSelect = document.querySelector("header-menu").shadowRoot?.getElementById("element-types")
+    for (const option of changeElSelect.options) {
+        if (el.tagName === option.value.replace(/\s/g, "").toUpperCase()) {
+            changeElSelect.value = option.value
+            return;
         }
     }
-    if (!newLi.parentElement) {
-        elTypeUl.appendChild(newLi)
-    }
-    elTypeUl.removeChild(elToRemove)
 }
 
 export function removeUndoIDs(scriptWrapper) { // globals
@@ -235,7 +223,9 @@ export function pruneEmptyInlineNodes(root) {
 /**
  * @param {HTMLElement} currentElement 
  * @param {HTMLElement} currentPage 
+ * @param {HTMLElement} scriptWrapper
  * @param {State} state
+ * @param {HTMLElement} fileNameInput
  */
 export function reformatScreenplay(currentElement, currentPage, scriptWrapper, state, fileNameInput) {
     const lastScrollPosition = saveScrollPosition(scriptWrapper);
@@ -246,18 +236,18 @@ export function reformatScreenplay(currentElement, currentPage, scriptWrapper, s
     const [allElements, combinedCurrentElement, combinedLastCursorPosition] = getAllScreenplayElements(currentElement, lastCursorPosition);
     currentElement = combinedCurrentElement
     lastCursorPosition = combinedLastCursorPosition
-    emptyElement(scriptWrapper)
+    scriptWrapper.innerHTML = ""
     const [newPages, newCurrentElement, newLastCursorPosition] = paginateScreenplay(allElements, currentElement, lastCursorPosition)
     currentElement = newCurrentElement
     lastCursorPosition = newLastCursorPosition
     for (const newPage of newPages) {
         scriptWrapper.appendChild(newPage)
     }
-    const lastSceneHeading = getLastSceneHeadingSlug(currentElement)
-    if (lastSceneHeading) {
-        if (!lastSceneHeading.dataset.noteID) attachSceneProperty(lastSceneHeading, generateSceneProperty(lastSceneHeading, state, scriptWrapper, fileNameInput))
-        else (updateSceneProperty(lastSceneHeading))
-    }
+    // const lastSceneHeading = getLastSceneHeadingSlug(currentElement)
+    // if (lastSceneHeading) {
+    //     if (!lastSceneHeading.dataset.noteID) attachSceneProperty(lastSceneHeading, generateSceneProperty(lastSceneHeading, state, scriptWrapper, fileNameInput), state.Notes)
+    //     else (updateSceneProperty(lastSceneHeading))
+    // }
     setCursorPosition(currentElement, lastCursorPosition, state.Navigation)
     restoreScrollPosition(lastScrollPosition, scriptWrapper)
 }
@@ -368,8 +358,8 @@ function completeStringFromSet(inputStr, autocompleteSet) {
     }
     return "";
 }
+
 /**
- * 
  * @param {string} inputStr 
  * @param {string} option 
  * @returns {boolean}
@@ -404,15 +394,13 @@ export function changeElementTo(el, newType, currentPage, navigation) {
 }
 
 export function generateSceneProperty(el, state, scriptWrapper, fileNameInput) {
-    // const [intro, location, time] = grabSceneInfo(el.textContent)
     const length = numAsClosestFraction(getSceneLength(el), 8)
     const lengthStr = length.whole + (length.numerator ? " " + length.numerator + "/" + length.denominator : "")
     const pageNum = 1 + getChildElementIndex(getScriptElementAndCurrentPage(el, state, scriptWrapper, fileNameInput)[1], scriptWrapper)
-    // const 
     const NewSceneProperties = document.importNode(ScenePropertyTemplate, true)
     NewSceneProperties.getElementsByClassName("scene-prop-length")[0].textContent = `Length: ${lengthStr}`
     NewSceneProperties.dataset['Length'] = lengthStr
-    
+
     NewSceneProperties.getElementsByClassName("scene-prop-page")[0].textContent = `Page: ${pageNum}`
     NewSceneProperties.dataset['Page'] = pageNum
     NewSceneProperties.getElementsByClassName("scene-prop-title")[0].textContent = "Title: "
@@ -420,12 +408,12 @@ export function generateSceneProperty(el, state, scriptWrapper, fileNameInput) {
     return NewSceneProperties
 }
 
-export function attachSceneProperty(el, sceneProp) {
+export function attachSceneProperty(el, sceneProp, notes) {
     const NewUUID = window.crypto.randomUUID()
     sceneProp.style.positionAnchor = "--" + NewUUID
     sceneProp.style.top = `anchor(--${NewUUID} top)`
     sceneProp.style.right = `anchor(--${NewUUID} right)`
-    sceneProp.querySelector("img").addEventListener("click", handleOpenNote)
+    sceneProp.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, notes))
     sceneProp.dataset.noteID = NewUUID
     sceneProp.id = NewUUID
     ScenePropertiesEl.appendChild(sceneProp)
@@ -438,7 +426,6 @@ export function updateSceneProperty(el, sceneProp) {
 }
 
 /**
- * 
  * @param {string} str 
  * @returns {[string, string, string]}
  */

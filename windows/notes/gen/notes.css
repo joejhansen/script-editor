@@ -1,0 +1,433 @@
+/* ==========================================================
+   Notes UI: shared styles for the notes table + note popover
+   Hooks: data-type (comment|suggestion|task), data-status (open|resolved)
+   ========================================================== */
+
+:root {
+  --note-font: Inter, system-ui, sans-serif;
+  --note-text: #1F1E1B;
+  --note-muted: #6B685F;
+  --note-bg: #FFFFFF;
+  --note-surface: #FBFAF7;
+  --note-fixed-bg: #F7F6F2;
+  --note-border: #DAD7CE;
+  --note-border-soft: #ECEAE3;
+  --note-accent: #2A47B8;
+  --note-accent-soft: #E8EEFC;
+  --note-danger: #B42318;
+  --note-radius: 8px;
+  --note-radius-lg: 12px;
+  --note-shadow: 0 12px 32px rgba(31, 30, 27, 0.18);
+}
+
+.notes-ui,
+.note-popover {
+  font-family: var(--note-font);
+  font-size: 13px;
+  color: var(--note-text);
+}
+
+.notes-ui button,
+.notes-ui input,
+.note-popover button,
+.note-popover input,
+.note-popover textarea {
+  font-family: inherit;
+}
+
+.notes-ui button,
+.note-popover button {
+  cursor: pointer;
+}
+
+/* ---------- Chips and status dots (driven by data attributes) ---------- */
+
+.note-chip {
+  --chip-bg: var(--note-accent-soft);
+  --chip-fg: var(--note-accent);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.note-chip[data-type="suggestion"] {
+  --chip-bg: #F0EAFB;
+  --chip-fg: #5B2FB3;
+}
+
+.note-chip[data-type="task"] {
+  --chip-bg: #E3F3EF;
+  --chip-fg: #0B5E50;
+}
+
+.note-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #B45309;
+  /* open */
+}
+
+.note-status[data-status="resolved"]::before {
+  background: #15803D;
+}
+
+/* ---------- Notes table ---------- */
+
+.notes-ui {
+  box-sizing: border-box;
+  padding: 32px;
+  background: var(--note-bg);
+  height: min-content;
+  width: min-content;
+  border: 1px solid var(--note-border);
+  border-radius: var(--note-radius-lg);
+  box-shadow: var(--note-shadow);
+}
+
+.notes-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.notes-toolbar__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.notes-toolbar__count {
+  margin-top: 4px;
+  color: var(--note-muted);
+}
+
+.notes-toolbar__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-search,
+.notes-filter {
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--note-border);
+  border-radius: var(--note-radius);
+  background: var(--note-bg);
+  color: var(--note-text);
+  font-size: 13px;
+}
+
+.notes-search {
+  width: 220px;
+}
+
+.notes-filter {
+  font-weight: 500;
+}
+
+.notes-table-wrap {
+  border: 1px solid var(--note-border);
+  border-radius: var(--note-radius-lg);
+  overflow: hidden;
+}
+
+.notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.notes-table th {
+  height: 40px;
+  padding: 0 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--note-muted);
+  background: var(--note-surface);
+  border-bottom: 1px solid var(--note-border);
+}
+
+.notes-table td {
+  height: 48px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--note-border-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notes-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.notes-table tbody tr:hover td {
+  background: var(--note-fixed-bg);
+}
+
+.notes-table tbody tr.is-selected td {
+  background: var(--note-accent-soft);
+}
+
+.notes-table tbody tr.is-selected .note-chip {
+  background: var(--note-bg);
+}
+
+.notes-table tbody tr.is-selected .notes-row__open {
+  font-weight: 500;
+}
+
+/* The clickable preview: a real button so it is keyboard reachable */
+.notes-row__open {
+  display: block;
+  /* width: fit; */
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notes-row__open:focus-visible {
+  outline: 2px solid var(--note-accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* ---------- Note popover ---------- */
+
+.note-popover-anchor {
+  position: absolute;
+  width: 380px;
+  /* set left/top from JS */
+}
+
+.note-popover {
+  position: relative;
+  background: var(--note-bg);
+  border: 1px solid var(--note-border);
+  border-radius: var(--note-radius-lg);
+  box-shadow: var(--note-shadow);
+  overflow: hidden;
+  width: max-content;
+}
+
+.note-popover__caret {
+  position: absolute;
+  left: 28px;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--note-bg);
+  border-left: 1px solid var(--note-border);
+  border-top: 1px solid var(--note-border);
+  transform: rotate(45deg);
+}
+
+.note-popover__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--note-border-soft);
+}
+
+.note-popover__title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.note-icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--note-radius);
+  background: transparent;
+  color: var(--note-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-icon-btn:hover {
+  background: var(--note-fixed-bg);
+}
+
+.note-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--note-muted);
+}
+
+/* Fixed (immutable) fields: shaded, plain text, no input chrome */
+.note-fields {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.note-fields th {
+  width: 104px;
+  padding: 10px 0 10px 16px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--note-muted);
+}
+
+.note-fields td {
+  padding: 10px 16px;
+}
+
+.note-fields--fixed {
+  background: var(--note-fixed-bg);
+  border-top: 1px solid var(--note-border-soft);
+  border-bottom: 1px solid var(--note-border-soft);
+}
+
+.note-fields--fixed td {
+  font-weight: 500;
+}
+
+.note-fields--fixed tr:not(:first-child) td {
+  font-weight: 400;
+}
+
+/* Editable fields: borderless at rest, border on hover, ring on focus */
+.note-fields--editable th {
+  padding: 5px 0 5px 16px;
+}
+
+.note-fields--editable td {
+  padding: 5px 16px 5px 8px;
+}
+
+.note-field {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--note-radius);
+  background: transparent;
+  color: var(--note-text);
+  font-size: 13px;
+}
+
+.note-field:hover {
+  border-color: var(--note-border);
+}
+
+.note-field:focus {
+  outline: 0;
+  border: 2px solid var(--note-accent);
+  padding: 0 9px;
+  background: var(--note-bg);
+}
+
+.note-field--select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.note-body {
+  padding: 10px 16px 14px;
+}
+
+.note-body__label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--note-muted);
+}
+
+.note-body__input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88px;
+  padding: 10px;
+  resize: none;
+  border: 1px solid var(--note-border);
+  border-radius: var(--note-radius);
+  font: inherit;
+  line-height: 1.45;
+  color: var(--note-text);
+}
+
+.note-body__input:focus {
+  outline: 0;
+  border: 2px solid var(--note-accent);
+  padding: 9px;
+}
+
+.note-popover__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 10px 16px;
+  border-top: 1px solid var(--note-border-soft);
+  background: var(--note-surface);
+}
+
+.note-popover__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.note-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--note-radius);
+  border: 1px solid var(--note-border);
+  background: var(--note-bg);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--note-text);
+}
+
+.note-btn--primary {
+  padding: 0 16px;
+  border: 0;
+  background: var(--note-accent);
+  color: #FFFFFF;
+}
+
+.note-btn--danger {
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--note-danger);
+}
+
+.note-btn:focus-visible,
+.note-icon-btn:focus-visible {
+  outline: 2px solid var(--note-accent);
+  outline-offset: 2px;
+}

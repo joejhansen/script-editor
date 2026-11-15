@@ -1,4 +1,5 @@
 export class NoteMenu {
+    static ImageURLNote = "img/material-icons/ink_pen_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg";
     /**
      * @param {Object.<string,Object.<string,string>>} data 
      */
@@ -169,26 +170,31 @@ export class NoteMenu {
         }
     }
     /**
-     * 
      * @param {string} id 
      * @returns {HTMLElement | null}
      */
     makeNoteTooltip(id) {
         if (!this.Data[id]) return null;
+        return this.makeNoteTooltipStatic(id, this.Data[id])
+    }
+    /**
+     * @param {string} id
+     * @param {Object.<string,string>} noteObj 
+     * @returns {HTMLElement}
+     */
+    static makeNoteTooltipStatic(id, noteObj) {
         const newPopover = document.createElement("div")
-        newPopover.style.positionAnchor = "--" + id;
-        newPopover.style.top = `anchor(--${id} top)`
-        newPopover.style.right = `anchor(--${id} right)`
+        newPopover.classList.add("note")
         newPopover.id = id
-        const thisNote = this.Data[id];
-        for (const note in thisNote) {
-            newPopover.dataset[note] = thisNote[note]
-            newPopover.textContent = `${note}: ${thisNote[note]}`
+        for (const note in noteObj) {
+            const newNote = document.createElement("div")
+            newNote.dataset[note] = noteObj[note]
+            newNote.textContent = `${note}: ${noteObj[note]}`
+            newPopover.appendChild(newNote)
         }
         return newPopover;
     }
     /**
-     * 
      * @param {string} id 
      * @param {HTMLElement} wrapper 
      * @returns {boolean}
@@ -201,7 +207,13 @@ export class NoteMenu {
         wrapper.appendChild(newTooltip);
         return true;
     }
-
+    /**
+     * @param {Object.<string,Object.<string,string>>} data 
+     * @returns {NoteMenu}
+     */
+    static fromSave(data) {
+        return new NoteMenu(data)
+    }
 }
 
 export class Notes {
@@ -228,14 +240,44 @@ export class Notes {
         vfx = new NoteMenu(),
         props = new NoteMenu()
     ) {
-        this.SceneProps = sceneProps;
-        this.ScriptNotes = scriptNotes;
-        this.Comments = comments;
-        this.Beats = beats;
-        this.StructurePoints = structurePoints;
-        this.Bookmarks = bookmarks;
-        this.Sfx = sfx;
-        this.Vfx = vfx;
-        this.Props = props;
+        /** @type {NoteMenu} */ this.SceneProps = sceneProps;
+        /** @type {NoteMenu} */ this.ScriptNotes = scriptNotes;
+        /** @type {NoteMenu} */ this.Comments = comments;
+        /** @type {NoteMenu} */ this.Beats = beats;
+        /** @type {NoteMenu} */ this.StructurePoints = structurePoints;
+        /** @type {NoteMenu} */ this.Bookmarks = bookmarks;
+        /** @type {NoteMenu} */ this.Sfx = sfx;
+        /** @type {NoteMenu} */ this.Vfx = vfx;
+        /** @type {NoteMenu} */ this.Props = props;
+    }
+    /**
+     * @param {string} id
+     * @returns {Object.<string,string} 
+     */
+    getNote(id) {
+        for (const noteMenu of Object.keys(this)) {
+            // console.log(this[noteMenu])
+            if (this[noteMenu].Data[id]) return this[noteMenu].Data[id]
+        }
+        console.warn(`Note ID ${id} not found.`)
+        return {};
+    }
+    /**
+     * @param {string} id 
+     * @returns {HTMLElement | null}
+     */
+    getNoteTooltip(id) {
+        return NoteMenu.makeNoteTooltipStatic(id, this.getNote(id))
+    }
+    /**
+     * @param {Object.<string,Object.<string,Object.<string,string>>>} data 
+     * @returns {Notes}
+     */
+    static fromSave(data) {
+        let newNotes = new Notes();
+        for (const noteMenu of Object.keys(newNotes)) {
+            if (data[noteMenu]) newNotes[noteMenu] = NoteMenu.fromSave(data[noteMenu].Data)
+        }
+        return newNotes
     }
 }

@@ -1,3 +1,4 @@
+import { Notes } from "./Notes.js";
 import { getCursorPosition, saveScrollPosition } from "./UX.js";
 
 export const LAST_SCREENPLAY_KEY = "lastScreenplay";
@@ -12,6 +13,7 @@ export const LAST_CURSOR_POSITION_KEY = "lastCursorPosition"
 export const LAST_SCRIPT_NOTES_KEY = "lastScriptNotes"
 export const LAST_SCENE_PROPERTIES_KEY = "lastSceneProperties"
 export const LAST_PAGE_SETTINGS_KEY = "lastPageSettings"
+export const LAST_NOTES_KEY = "lastNotes"
 
 /**
  * 
@@ -25,6 +27,10 @@ export const LAST_PAGE_SETTINGS_KEY = "lastPageSettings"
  * @param {HTMLInputElement} fileNameInput 
  * @param {Set} characterSet 
  * @param {HTMLElement} lastFocusedElement 
+ * @param {HTMLElement} scriptNotesEl
+ * @param {HTMLElement} scenePropertiesEl
+ * @param {import("./ScriptSettings").PageSettings} pageSettings
+ * @param {Notes} notes
  */
 export function saveCurrentScreenplay(
     e,
@@ -37,9 +43,10 @@ export function saveCurrentScreenplay(
     fileNameInput,
     characterSet,
     lastFocusedElement,
-    ScriptNotesEl,
-    ScenePropertiesEl,
-    pageSettings
+    // scriptNotesEl,
+    // scenePropertiesEl,
+    pageSettings,
+    notes
 ) {
     if (document.visibilityState === "hidden") {
         const xmlString = new XMLSerializer().serializeToString(originalXML);
@@ -54,9 +61,10 @@ export function saveCurrentScreenplay(
         // localStorage.setItem(LAST_UNDO_STACK_KEY, JSON.stringify(undoStack))
         localStorage.setItem(LAST_SCROLL_POSITION_KEY, JSON.stringify(saveScrollPosition(scriptWrapper)))
         localStorage.setItem(LAST_CURSOR_POSITION_KEY, getCursorPosition(lastFocusedElement))
-        localStorage.setItem(LAST_SCRIPT_NOTES_KEY, ScriptNotesEl.innerHTML)
-        localStorage.setItem(LAST_SCENE_PROPERTIES_KEY, ScenePropertiesEl.innerHTML)
+        // localStorage.setItem(LAST_SCRIPT_NOTES_KEY, scriptNotesEl.innerHTML)
+        // localStorage.setItem(LAST_SCENE_PROPERTIES_KEY, scenePropertiesEl.innerHTML)
         localStorage.setItem(LAST_PAGE_SETTINGS_KEY, JSON.stringify(pageSettings))
+        localStorage.setItem(LAST_NOTES_KEY, JSON.stringify(notes))
     }
 }
 /**
@@ -75,9 +83,10 @@ export function tryGetLastScreenplay() {
     const lastCharSet = localStorage.getItem(LAST_CHARACTER_SET_KEY)
     const lastScrollPosition = localStorage.getItem(LAST_SCROLL_POSITION_KEY)
     const lastCursorPosition = localStorage.getItem(LAST_CURSOR_POSITION_KEY)
-    const lastScriptNotes = localStorage.getItem(LAST_SCRIPT_NOTES_KEY)
-    const lastSceneProperties = localStorage.getItem(LAST_SCENE_PROPERTIES_KEY)
+    // const lastScriptNotes = localStorage.getItem(LAST_SCRIPT_NOTES_KEY)
+    // const lastSceneProperties = localStorage.getItem(LAST_SCENE_PROPERTIES_KEY)
     const lastPageSettings = localStorage.getItem(LAST_PAGE_SETTINGS_KEY)
+    const lastNotes = localStorage.getItem(LAST_NOTES_KEY)
 
     if (lastScreenplay) {
         const domParser = new DOMParser()
@@ -96,11 +105,12 @@ export function tryGetLastScreenplay() {
             JSON.parse(lastScrollPosition),
             parseInt(lastCursorPosition),
             lastTitlePage,
-            lastScriptNotes,
-            lastSceneProperties,
-            lastPageSettings ? JSON.parse(lastPageSettings) : null
+            // lastScriptNotes,
+            // lastSceneProperties,
+            lastPageSettings ? JSON.parse(lastPageSettings) : null,
+            lastNotes ? JSON.parse(lastNotes) : null
         ]
     } else {
-        return [false, null, null, null, null, null, null, null, null, null, null, null]
+        return [false, null, null, null, null, null, null, null, null, null, null, null, null]
     }
 }

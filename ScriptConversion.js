@@ -1,3 +1,4 @@
+import { NoteMenu, Notes } from "./Notes.js";
 import { forceScale, scalePage } from "./PageScaler.js";
 import { paginateScreenplay } from "./Pagination.js";
 import { ALL_CAPS_ELEMENTS, DEFAULT_FONT_SIZE_PIXELS, DEFAULT_FONT_SIZE_POINTS, DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_PAGE_WIDTH_INCHES, NOTE_ELEMENTS, PIXELS_PER_INCH, POINTS_PER_INCH, tagToFDXType } from "./ScriptSettings.js";
@@ -11,21 +12,26 @@ export const ScriptNotesEL = document.getElementsByTagName("scriptnotes")[0]
 export const ScriptNoteTemplate = ScriptNotesEL.getElementsByTagName("template")[0].content.querySelector("scriptnote")
 export const ScenePropertiesEl = document.getElementsByTagName("sceneproperties")[0]
 export const ScenePropertyTemplate = ScenePropertiesEl.getElementsByTagName("template")[0].content.querySelector("sceneproperty")
+const NotesEl = document.getElementsByTagName("notes")[0]
 /** @type {HTMLElement | null} */
 let lastNoteOpened = null;
 /**
  * @param {Event} e 
+ * @param {Notes} notes
  */
-export function handleOpenNote(e) {
+export function handleToggleNote(e, notes) {
     e.preventDefault();
     e.stopPropagation()
     /** @type {HTMLElement} */
     const someEl = e.target.parentElement
-    if (someEl.querySelector("content").classList.toggle("active")) {
-        lastNoteOpened?.classList.toggle("active")
-        lastNoteOpened = someEl.querySelector("content");
-    } else {
+    if (lastNoteOpened === someEl.lastChild) {
+        someEl.removeChild(lastNoteOpened);
         lastNoteOpened = null;
+    } else {
+        if (lastNoteOpened) lastNoteOpened.parentElement.removeChild(lastNoteOpened)
+        const newNote = notes.getNoteTooltip(someEl.id);
+        someEl.appendChild(newNote)
+        lastNoteOpened = newNote;
     }
 }
 /**
@@ -51,31 +57,37 @@ function JSDateToFDXDate(str) {
     return res;
 }
 /**
- * @param {Element} note 
+ * @param {Element} noteEl 
+ * @param {Notes} notesObj
  * @returns {UUIDString}
 */
-function scriptNoteToHTML(note) {
+function scriptNoteToHTML(noteEl, notesObj) {
 
     /**@type {HTMLElement} */
     const NewScriptNote = document.importNode(ScriptNoteTemplate, true)
-    // const NewScriptNote = document.createElement("scriptnote")
+    const NewNote = {};
     for (const Attribute of ["Author", "Color", "DateModified", "DateTime", "Name", "Type"]) {
-        let thisAttribute = note.getAttribute(Attribute);
-        NewScriptNote.dataset[Attribute] = thisAttribute
+        let thisAttribute = noteEl.getAttribute(Attribute);
+        // NewScriptNote.dataset[Attribute] = thisAttribute
         if (Attribute === "DateModified" || Attribute === "DateTime") {
             const NewDate = new Date(FDXDateToJSDate(thisAttribute));
             thisAttribute = `${NewDate.toLocaleDateString()} ${NewDate.toLocaleTimeString()}`
-            NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute.substring(0, 4)} ${Attribute.substring(4)}: ${thisAttribute}`
-        } else if (thisAttribute){
-            NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${thisAttribute}`
+            // NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute.substring(0, 4)} ${Attribute.substring(4)}: ${thisAttribute}`
+            // NewNote[`${Attribute.substring(0, 4)} ${Attribute.substring(4)}`] = thisAttribute;
+            NewNote[Attribute] = thisAttribute;
+        } else if (thisAttribute) {
+            // NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${thisAttribute}`
+            NewNote[Attribute] = thisAttribute
         }
     }
-    NewScriptNote.getElementsByClassName("note-content")[0].textContent = `Note: ${note.textContent}`;
     const NewUUID = window.crypto.randomUUID()
+    // NewScriptNote.getElementsByClassName("note-content")[0].textContent = `Note: ${noteEl.textContent}`;
+    NewNote["Content"] = noteEl.textContent
+    notesObj.ScriptNotes.newNote(NewUUID, NewNote)
     NewScriptNote.style.positionAnchor = "--" + NewUUID
     NewScriptNote.style.top = `anchor(--${NewUUID} top)`
     NewScriptNote.style.right = `anchor(--${NewUUID} right)`
-    NewScriptNote.querySelector("img").addEventListener("click", handleOpenNote)
+    NewScriptNote.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, notesObj))
     NewScriptNote.dataset.noteID = NewUUID
     NewScriptNote.id = NewUUID
     ScriptNotesEL.appendChild(NewScriptNote)
@@ -101,29 +113,37 @@ export function htmlToScriptNote(el, doc) {
 
 /**
  * 
- * @param {Element} note 
+ * @param {Element} noteEl 
+ * @param {Notes} notesObj
  * @returns {UUIDString}
  */
-function scenePropertiesToHTML(note) {
+function scenePropertiesToHTML(noteEl, notesObj) {
     const NewSceneProperties = document.importNode(ScenePropertyTemplate, true)
+    const NewNote = {};
     // length and page number have to updated programatically
     for (const Attribute of ["Length", "Page", "Title"]) {
-        const ThisAttribute = note.getAttribute(Attribute);
-        NewSceneProperties.dataset[Attribute] = ThisAttribute
-        NewSceneProperties.getElementsByClassName(`scene-prop-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${ThisAttribute}`
+        const ThisAttribute = noteEl.getAttribute(Attribute);
+        // NewSceneProperties.dataset[Attribute] = ThisAttribute
+        // NewSceneProperties.getElementsByClassName(`scene-prop-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${ThisAttribute}`
+        NewNote[Attribute] = ThisAttribute;
     }
-    const CharacterArcBeats = note.getElementsByTagName("CharacterArcBeat")
+    const CharacterArcBeats = noteEl.getElementsByTagName("CharacterArcBeat")
+    let characters = [];
     for (const CharArcBeat of CharacterArcBeats) {
         const NewCharArc = document.createElement("characterarcbeat")
-        NewCharArc.dataset["Name"] = CharArcBeat.getAttribute("Name")
+        const CharacterName = CharArcBeat.getAttribute("Name");
+        NewCharArc.dataset["Name"] = CharacterName
         NewCharArc.textContent = CharArcBeat.getElementsByTagName("Text")[0]?.textContent;
-        NewSceneProperties.querySelector("content").appendChild(NewCharArc)
+        // NewSceneProperties.querySelector("content").appendChild(NewCharArc)
+        characters.push(CharacterName)
     }
+    NewNote["Characters"] = characters.join(", ")
     const NewUUID = window.crypto.randomUUID()
+    notesObj.SceneProps.newNote(NewUUID, NewNote)
     NewSceneProperties.style.positionAnchor = "--" + NewUUID
     NewSceneProperties.style.top = `anchor(--${NewUUID} top)`
     NewSceneProperties.style.right = `anchor(--${NewUUID} right)`
-    NewSceneProperties.querySelector("img").addEventListener("click", handleOpenNote)
+    NewSceneProperties.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, notesObj))
     NewSceneProperties.dataset.noteID = NewUUID
     NewSceneProperties.id = NewUUID
     ScenePropertiesEl.appendChild(NewSceneProperties)
@@ -157,9 +177,10 @@ export function htmlToSceneProperties(el, doc) {
 
 /**
  * @param {Element} el 
+ * @param {Notes} notes
  * @returns {HTMLElement[]}
  */
-function EltoHTML(el) {
+function EltoHTML(el, notes) {
     let elType = el.getAttribute("Type").replace(/\s/g, "").toLowerCase();
     /** @type {HTMLElement[]} */
     let res = [];
@@ -168,11 +189,11 @@ function EltoHTML(el) {
     let newEl = document.createElement(elType)
     for (let tag of el.children) {
         if (tag.tagName === "ScriptNote") {
-            const NewUUID = scriptNoteToHTML(tag);
+            const NewUUID = scriptNoteToHTML(tag, notes);
             newEl.dataset.noteID = NewUUID;
             newEl.style.anchorName = "--" + NewUUID
         } else if (tag.tagName === "SceneProperties") {
-            const NewUUID = scenePropertiesToHTML(tag);
+            const NewUUID = scenePropertiesToHTML(tag, notes);
             newEl.dataset.noteID = NewUUID
             newEl.style.anchorName = "--" + NewUUID
         } else if (tag.tagName === "Text") {
@@ -196,14 +217,15 @@ function EltoHTML(el) {
 
 /**
  * @param {Document} doc
+ * @param {Notes} notes
  * @return {HTMLElement[]}
  */
-export function XMLtoHTML(doc) {
+export function XMLtoHTML(doc, notes) {
     /** @type {Element[]} */
     let res = []
     let contentEls = doc.getElementsByTagName("FinalDraft")[0].getElementsByTagName("Content")[0].children
     for (let el of contentEls) {
-        res.push(...EltoHTML(el))
+        res.push(...EltoHTML(el, notes))
     }
     return res;
 }
@@ -239,18 +261,13 @@ export async function loadBlankXMLDoc(script) { // globals
             .then(res => res.text())
             .then(text => parseXMLString(text))
             .then(doc => {
-                // blankScriptXML = doc;
                 script.BlankScriptXML = doc;
-                // originalXML = blankScriptXML;
                 script.OriginalXML = script.BlankScriptXML
-                // titlePageOuterHTML = loadTitlePage(originalXML).map(e => e.outerHTML).join('')
                 script.TitlePageOuterHTML = loadTitlePage(script.OriginalXML).map(e => e.outerHTML).join('')
             })
             .catch(e => console.warn(e))
     } else {
-        // originalXML = blankScriptXML
         script.OriginalXML = script.BlankScriptXML
-        // titlePageOuterHTML = loadTitlePage(originalXML).map(e => e.outerHTML).join('')
         script.TitlePageOuterHTML = loadTitlePage(script.OriginalXML).map(e => e.outerHTML).join('')
     }
 }
@@ -265,19 +282,14 @@ export async function loadDefaultSettings(settings) { // globals
             .then(res => res.text())
             .then(text => parseXMLString(text))
             .then((doc) => {
-                // defaultPageSettings = LoadPageSettings(doc, settings);
                 settings.DefaultPageSettings = LoadPageSettings(doc);
-                // pageSettings = defaultPageSettings;
                 settings.PageSettings = settings.DefaultPageSettings;
-                // defaultScriptSettings = LoadElSettings(doc);
                 settings.DefaultScriptSettings = LoadElSettings(doc);
-                // scriptSettings = defaultScriptSettings
                 settings.ScriptSettings = settings.DefaultScriptSettings;
                 if (settings.ScriptSettings === null) throw "DEBUG:\t loadDefaultSettings -> Something went wrong loading scriptSettings"
             })
             .catch(e => console.warn(e))
     } else {
-        // scriptSettings = defaultScriptSettings
         settings.ScriptSettings = settings.DefaultScriptSettings;
         settings.PageSettings = settings.DefaultPageSettings
     }
@@ -394,12 +406,6 @@ function assignTitleTextStyles(el, styles) {
     el.dataset.lineHeight = styles.spacing
     el.style.textAlign = styles.textAlign === "Full" ? "Left" : styles.textAlign;
     el.dataset.right = styles.textAlign === "Center" ? 0.25 : 0
-    // el.style.textIndent = styles.firstIndent.toString() + "in";
-    // el.style.paddingLeft = (1 - styles.leftIndent).toString() + "in";
-    // el.style.paddingRight = (1 + styles.rightindent - 8.5).toString() + "in";
-    // el.style.paddingTop = styles.spaceBefore.toString() + "in"
-    // el.style.lineHeight = styles.spacing.toString() + "rem"
-    // el.style.right = el.style.textAlign === "center" ? ".25in" : "0"
 }
 
 /**

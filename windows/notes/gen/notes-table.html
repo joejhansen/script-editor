@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>All notes</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="notes.css">
+  <style>
+  </style>
+</head>
+
+<body>
+  <div class="notes-ui" style="position: relative;">
+
+    <div class="notes-toolbar">
+      <div>
+        <h1 class="notes-toolbar__title">Notes</h1>
+        <div class="notes-toolbar__count" data-bind="count">6 notes in this document</div>
+      </div>
+      <div class="notes-toolbar__controls">
+        <label for="notes-q" style="position:absolute;left:-9999px">Search notes</label>
+        <input class="notes-search" id="notes-q" placeholder="Search notes">
+        <button class="notes-filter" data-filter="type">Type: All</button>
+        <button class="notes-filter" data-filter="status">Status: All</button>
+      </div>
+    </div>
+
+    <div class="notes-table-wrap">
+      <table class="notes-table">
+        <colgroup>
+          <col style="width:120px">
+          <col style="width:320px">
+          <col style="width:70px">
+          <col style="width:150px">
+          <col style="width:110px">
+          <col style="width:110px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Type</th>
+            <th scope="col">Note</th>
+            <th scope="col">Page</th>
+            <th scope="col">Author</th>
+            <th scope="col">Status</th>
+            <th scope="col">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-note-id="note-2">
+            <td><span class="note-chip" data-type="suggestion">Suggestion</span></td>
+            <td><button class="notes-row__open" data-action="open-note">Tighten the opening paragraph.</button></td>
+            <td>2</td>
+            <td>Jordan Lee</td>
+            <td><span class="note-status" data-status="open">Open</span></td>
+            <td>Nov 10</td>
+          </tr>
+          <tr data-note-id="note-5">
+            <td><span class="note-chip" data-type="task">Task</span></td>
+            <td><button class="notes-row__open" data-action="open-note">Add a citation for the market estimate.</button>
+            </td>
+            <td>5</td>
+            <td>Sam Patel</td>
+            <td><span class="note-status" data-status="resolved">Resolved</span></td>
+            <td>Nov 11</td>
+          </tr>
+          <tr data-note-id="note-12" class="is-selected" aria-selected="true">
+            <td><span class="note-chip" data-type="comment">Comment</span></td>
+            <td><button class="notes-row__open" data-action="open-note">Check this figure against the source before
+                publishing.</button></td>
+            <td>12</td>
+            <td>Alex Rivera</td>
+            <td><span class="note-status" data-status="open">Open</span></td>
+            <td>Nov 12</td>
+          </tr>
+          <tr data-note-id="note-14">
+            <td><span class="note-chip" data-type="comment">Comment</span></td>
+            <td><button class="notes-row__open" data-action="open-note">Confirm the caption wording with
+                design.</button></td>
+            <td>14</td>
+            <td>Jordan Lee</td>
+            <td><span class="note-status" data-status="open">Open</span></td>
+            <td>Nov 12</td>
+          </tr>
+          <tr data-note-id="note-18">
+            <td><span class="note-chip" data-type="task">Task</span></td>
+            <td><button class="notes-row__open" data-action="open-note">Replace the placeholder chart.</button></td>
+            <td>18</td>
+            <td>Alex Rivera</td>
+            <td><span class="note-status" data-status="open">Open</span></td>
+            <td>Nov 13</td>
+          </tr>
+          <tr data-note-id="note-21">
+            <td><span class="note-chip" data-type="suggestion">Suggestion</span></td>
+            <td><button class="notes-row__open" data-action="open-note">Move this section before the summary.</button>
+            </td>
+            <td>21</td>
+            <td>Sam Patel</td>
+            <td><span class="note-status" data-status="resolved">Resolved</span></td>
+            <td>Nov 13</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Popover mount: position left/top from the clicked row's bounding rect.
+       Remove the style attribute and set it from JS in your app. -->
+    <div class="note-popover-anchor" style="left: 150px; top: 300px;">
+
+    </div>
+
+  </div>
+</body>
+
+</html>
