@@ -1,0 +1,260 @@
+.notes-ui,
+.note-popover {
+    font-family: var(--ui-font);
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.notes-ui button,
+.notes-ui input,
+.note-popover button,
+.note-popover input,
+.note-popover textarea {
+    font-family: inherit;
+}
+
+.notes-ui button,
+.note-popover button {
+    cursor: pointer;
+}
+
+.notes-table tbody tr.is-selected td {
+    background: var(--chrome);
+}
+
+.notes-table tbody tr.is-selected .note-chip {}
+
+.note-chip {
+    --chip-bg: var(--ribbon);
+    --chip-fg: var(--note-accent);
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--chip-bg);
+    color: var(--chip-fg);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.note-chip[data-type="comment"] {
+    --chip-bg: var(--note-comment-bg);
+    --chip-fg: var(--note-comment-fg);
+}
+
+.note-chip[data-type="scene-property"] {
+    --chip-bg: var(--note-scene-property-bg);
+    --chip-fg: var(--note-scene-property-fg);
+}
+
+.note-chip[data-type="script-note"] {
+    --chip-bg: var(--note-script-note-bg);
+    --chip-fg: var(--note-script-note-fg);
+}
+
+.note-chip[data-type="beat"] {
+    --chip-bg: var(--note-beat-bg);
+    --chip-fg: var(--note-beat-fg);
+}
+
+.note-chip[data-type="structure-point"] {
+    --chip-bg: var(--note-structure-point-bg);
+    --chip-fg: var(--note-structure-point-fg);
+}
+
+.note-chip[data-type="bookmark"] {
+    --chip-bg: var(--note-bookmark-bg);
+    --chip-fg: var(--note-bookmark-fg);
+}
+
+.note-chip[data-type="sfx"] {
+    --chip-bg: var(--note-sfx-bg);
+    --chip-fg: var(--note-sfx-fg);
+}
+
+.note-chip[data-type="vfx"] {
+    --chip-bg: var(--note-vfx-bg);
+    --chip-fg: var(--note-vfx-fg);
+}
+
+.note-chip[data-type="prop"] {
+    --chip-bg: var(--note-prop-bg);
+    --chip-fg: var(--note-prop-fg);
+}
+
+.notes-ui {
+    box-sizing: border-box;
+    padding: 32px;
+    padding-top: 16px;
+    background: var(--ribbon);
+    height: min-content;
+    width: min-content;
+    border: 1px solid var(--line);
+    border-radius: var(--note-radius-lg);
+    box-shadow: var(--note-shadow);
+}
+
+header {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.notes-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.notes-toolbar__title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.notes-toolbar__count {
+    margin-top: 4px;
+    color: var(--ink);
+}
+
+.notes-toolbar__controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notes-search,
+.notes-filter {
+    box-sizing: border-box;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--note-radius);
+    background: var(--chrome);
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.notes-search {
+    width: 220px;
+}
+
+.notes-filter {
+    font-weight: 500;
+}
+
+.sort-select {
+    display: flex;
+    flex-direction: row;
+}
+
+.sort-select .sort-order {
+    border: 1px solid var(--line);
+    border-radius: var(--note-radius-lg);
+    background-color: var(--chrome);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.sort-select .sort-by {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.notes-table-wrap {
+    border: 1px solid var(--line);
+    border-radius: var(--note-radius-lg);
+    overflow: hidden;
+}
+
+.notes-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.notes-table th {
+    height: 40px;
+    padding: 0 12px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--chrome);
+    border-bottom: 1px solid var(--line);
+}
+
+.notes-table td {
+    height: 48px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notes-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.notes-table tbody tr:hover td {
+    background: var(--canvas);
+}
+
+
+
+
+
+.notes-table tbody tr.is-selected .notes-row__open {
+    font-weight: 500;
+}
+
+/* The clickable preview: a real button so it is keyboard reachable */
+.notes-row__open {
+    display: block;
+    /* width: fit; */
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    font-size: 13px;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notes-row__open:focus-visible {
+    outline: 2px solid var(--note-accent);
+    outline-offset: 4px;
+    border-radius: 4px;
+}
+
+.note-icon-btn {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: var(--note-radius);
+    background: transparent;
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.note-icon-btn:hover {
+    background: var(--canvas);
+}
+
+.note-btn:focus-visible,
+.note-icon-btn:focus-visible {
+    outline: 2px solid var(--note-accent);
+    outline-offset: 2px;
+}
+
+@media(prefers-color-scheme:dark) {
+    img {
+        filter: invert(100%)
+    }
+}

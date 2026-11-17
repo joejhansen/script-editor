@@ -24,14 +24,15 @@ export function handleToggleNote(e, notes) {
     e.stopPropagation()
     /** @type {HTMLElement} */
     const someEl = e.target.parentElement
-    if (lastNoteOpened === someEl.lastChild) {
-        someEl.removeChild(lastNoteOpened);
+    if (lastNoteOpened === someEl) {
+        someEl.removeChild(someEl.lastElementChild);
         lastNoteOpened = null;
+
     } else {
-        if (lastNoteOpened) lastNoteOpened.parentElement.removeChild(lastNoteOpened)
+        if (lastNoteOpened) lastNoteOpened.removeChild(lastNoteOpened.lastElementChild)
         const newNote = notes.getNoteTooltip(someEl.id);
         someEl.appendChild(newNote)
-        lastNoteOpened = newNote;
+        lastNoteOpened = someEl;
     }
 }
 /**
@@ -68,21 +69,16 @@ function scriptNoteToHTML(noteEl, notesObj) {
     const NewNote = {};
     for (const Attribute of ["Author", "Color", "DateModified", "DateTime", "Name", "Type"]) {
         let thisAttribute = noteEl.getAttribute(Attribute);
-        // NewScriptNote.dataset[Attribute] = thisAttribute
         if (Attribute === "DateModified" || Attribute === "DateTime") {
             const NewDate = new Date(FDXDateToJSDate(thisAttribute));
             thisAttribute = `${NewDate.toLocaleDateString()} ${NewDate.toLocaleTimeString()}`
-            // NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute.substring(0, 4)} ${Attribute.substring(4)}: ${thisAttribute}`
-            // NewNote[`${Attribute.substring(0, 4)} ${Attribute.substring(4)}`] = thisAttribute;
             NewNote[Attribute] = thisAttribute;
         } else if (thisAttribute) {
-            // NewScriptNote.getElementsByClassName(`note-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${thisAttribute}`
             NewNote[Attribute] = thisAttribute
         }
     }
     const NewUUID = window.crypto.randomUUID()
-    // NewScriptNote.getElementsByClassName("note-content")[0].textContent = `Note: ${noteEl.textContent}`;
-    NewNote["Content"] = noteEl.textContent
+    NewNote["Content"] = noteEl.textContent.trim()
     notesObj.ScriptNotes.newNote(NewUUID, NewNote)
     NewScriptNote.style.positionAnchor = "--" + NewUUID
     NewScriptNote.style.top = `anchor(--${NewUUID} top)`
@@ -123,8 +119,6 @@ function scenePropertiesToHTML(noteEl, notesObj) {
     // length and page number have to updated programatically
     for (const Attribute of ["Length", "Page", "Title"]) {
         const ThisAttribute = noteEl.getAttribute(Attribute);
-        // NewSceneProperties.dataset[Attribute] = ThisAttribute
-        // NewSceneProperties.getElementsByClassName(`scene-prop-${Attribute[0].toLowerCase()}${Attribute.substring(1)}`)[0].textContent = `${Attribute}: ${ThisAttribute}`
         NewNote[Attribute] = ThisAttribute;
     }
     const CharacterArcBeats = noteEl.getElementsByTagName("CharacterArcBeat")
@@ -134,7 +128,6 @@ function scenePropertiesToHTML(noteEl, notesObj) {
         const CharacterName = CharArcBeat.getAttribute("Name");
         NewCharArc.dataset["Name"] = CharacterName
         NewCharArc.textContent = CharArcBeat.getElementsByTagName("Text")[0]?.textContent;
-        // NewSceneProperties.querySelector("content").appendChild(NewCharArc)
         characters.push(CharacterName)
     }
     NewNote["Characters"] = characters.join(", ")

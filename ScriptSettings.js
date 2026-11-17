@@ -102,6 +102,27 @@ export const VALID_FDX_TYPES = [
     "Note",
 ];
 export const ALL_CAPS_ELEMENTS = ["SCENEHEADING", "CHARACTER", "SHOT", "TRANSITION", "NEWACT", "ENDOFACT"]
+export const TOP_PADDING_MAP = {
+    SCENEHEADING: 32,
+    ACTION: 16,
+    CHARACTER: 16,
+    DIALOGUE: 0,
+    PARENTHETICAL: 0,
+    TRANSITION: 16,
+    SHOT: 32,
+    SEQUENCE: 0,
+    NEWACT: 16,
+    ENDOFACT: 32,
+    CASTLIST: 0,
+    SUMMARY: 0,
+    GENERAL: 0,
+    OUTLINE1: 0,
+    OUTLINE2: 0,
+    OUTLINE3: 0,
+    NOTE: 0,
+    CONTINUED: 0,
+    TITLETEXT: 0,
+}
 export const HTML_TAG_NAMES = [
     "sceneheading",
     "action",

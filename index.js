@@ -4,7 +4,9 @@ import { dragElement, newBlankScript } from "./UX.js";
 import { scalePage as autoScalePage } from "./PageScaler.js";
 import { State } from "./State.js";
 import { handleBeforeInput, handleCopy, handleCut, handleElementPicker, handleFileInput, handleInput, handleKeyDown, handleKeyUp, handleMenuButtons, handleOnClick, handleOnLoad, handlePageTracker, handlePaste, handleVisibilityChange, toggleEditTitlePage } from "./EventHandlers.js";
+import { NotesTable } from "./NotesTable.js";
 const HeaderMenu = document.querySelector("header-menu")
+const NotesTableEl = document.querySelector("notes-table")
 const ScriptWrapper = document.getElementById("script-main");
 const FileNameInput = HeaderMenu.shadowRoot?.getElementById("file-name")
 const TitlePageButton = HeaderMenu.shadowRoot?.getElementById("title-page-toggle")
@@ -43,8 +45,30 @@ HeaderMenu.shadowRoot?.getElementById("element-types").addEventListener("change"
 HeaderMenu.shadowRoot?.getElementById("copy-button").addEventListener("click", handleCopy)
 HeaderMenu.shadowRoot?.getElementById("cut-button").addEventListener("click", (e) => handleCut(e, ScriptWrapper))
 HeaderMenu.shadowRoot?.getElementById("paste-button").addEventListener("click", (e) => handlePaste(e, state, ScriptWrapper))
+HeaderMenu.shadowRoot?.getElementById("all-notes-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes))
+
+HeaderMenu.shadowRoot?.getElementById("script-note-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "ScriptNotes"))
+HeaderMenu.shadowRoot?.getElementById("scenes-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "SceneProps"))
+HeaderMenu.shadowRoot?.getElementById("comments-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Comments"))
+HeaderMenu.shadowRoot?.getElementById("beats-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Beats"))
+HeaderMenu.shadowRoot?.getElementById("structure-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "StructurePoints"))
+HeaderMenu.shadowRoot?.getElementById("bookmarks-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Bookmarks"))
+HeaderMenu.shadowRoot?.getElementById("characters-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Characters"))
+HeaderMenu.shadowRoot?.getElementById("sfx-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Sfx"))
+HeaderMenu.shadowRoot?.getElementById("vfx-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Vfx"))
+HeaderMenu.shadowRoot?.getElementById("props-table-button").addEventListener("click", (e) => NotesTable.open(e, NotesTableEl.shadowRoot, state.Notes, "Props"))
 // document.getElementById("mobile-tab").addEventListener("click", (e) => document.getElementById("header-menu").classList.toggle("active"))
 
+
+
+
+
+
+
+
+
+
+// NotesTable.shadowRoot?.getElementById("all-notes")
 document.getElementById("watermark-save").addEventListener("click", (e) => {
     state.Settings.Watermark = document.getElementById("watermark-input").value
     WatermarkPopover.hidePopover();

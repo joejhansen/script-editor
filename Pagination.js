@@ -1,5 +1,5 @@
-import { getCurrentScale } from "./PageScaler.js";
-import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_MARGIN_INCHES, PIXELS_PER_INCH, getChildElementIndex } from "./ScriptSettings.js";
+import { forceScale, getCurrentScale, scalePage } from "./PageScaler.js";
+import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_MARGIN_INCHES, PIXELS_PER_INCH, getChildElementIndex, TOP_PADDING_MAP } from "./ScriptSettings.js";
 
 /**
  * @callback KeepWithNextPredicate
@@ -27,14 +27,12 @@ import { DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_BOTTOM_MARGIN_INCHES, DEFAULT_TOP_M
  */
 
 /**
- * 
  * @param {HTMLElement[]} elements 
  * @param {HTMLElement} currentElement 
  * @param {number} lastCursorPosition 
  * @param {PaginationOptions} options 
  * @returns {[HTMLElement[], HTMLElement, number]}
  */
-
 export function paginateScreenplay(elements, currentElement = null, lastCursorPosition = -1, options = {
     pageClassName: 'page',
     pageHeightIn: DEFAULT_PAGE_HEIGHT_INCHES - DEFAULT_BOTTOM_MARGIN_INCHES - DEFAULT_TOP_MARGIN_INCHES,
@@ -46,8 +44,8 @@ export function paginateScreenplay(elements, currentElement = null, lastCursorPo
     minWordsAfterSplit: 4,
     isKeepWithNext: null,
 }) {
-    // const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
-    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH * getCurrentScale();
+    forceScale(1) // same trick as with print to pdf because measurements can differ thanks to floating point math
+    const pageHeightPx = options.pageHeightIn * PIXELS_PER_INCH;
 
     // Pass 1: measure everything in ONE reflow.
     const heights = measureHeights(elements, options, pageHeightPx);
@@ -84,11 +82,14 @@ export function paginateScreenplay(elements, currentElement = null, lastCursorPo
         currentEls = [];
         currentHeight = 0;
     }
-
-    function startNewPage(el, h) {
-        flushPage();
+    /**
+     * @param {HTMLElement} el 
+     * @param {number} h 
+     */
+    function startNewPage(el, h, flush = true) {
+        if (flush) flushPage();
         currentEls.push(el);
-        currentHeight = h;
+        currentHeight = h - TOP_PADDING_MAP[el.tagName];
     }
     function heightOf(el) { return measureOne(el, scratch); }
 
@@ -100,8 +101,7 @@ export function paginateScreenplay(elements, currentElement = null, lastCursorPo
         if (tag === options.characterTagName) lastCharacterEl = el;
 
         if (currentEls.length === 0) {
-            currentEls.push(el);
-            currentHeight = h;
+            startNewPage(el, h, false)
         } else if (el.tagName === "NEWACT") {
             startNewPage(el, h)
         } else if (currentHeight + h > pageHeightPx) {
@@ -150,6 +150,7 @@ export function paginateScreenplay(elements, currentElement = null, lastCursorPo
     }
     pageBuckets.push(currentEls);
     document.body.removeChild(scratch);
+    scalePage()
     // Pass 3: build real pages, one batched write each — still no reads.
     return [pageBuckets.map((els, i) => {
         const page = createPage(options);
@@ -230,6 +231,7 @@ function measureHeights(elements, options, maxPageHeightPx) {
     Object.assign(sandbox.style, { position: 'absolute', left: '-99999px', top: '0', pointerEvents: 'none' });
     sandbox.style.boxSizing = "border-box"
     const measurePage = createPage(options);
+    measurePage.classList.add("measurer")
     Object.assign(measurePage.style, { height: 'auto', overflow: 'visible' });
     sandbox.appendChild(measurePage);
     document.body.appendChild(sandbox);

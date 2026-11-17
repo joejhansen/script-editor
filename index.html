@@ -13,16 +13,19 @@
     <main>
         <div id="mobile-header-anchor"></div>
         <div id="patch-notes">
-            <p>v0.37 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
+            <p>v0.39 <a href="mailto:josephjameshansen@gmail.com?subject=Free%20Script%20Editor%20Feedback">Provide
                     Feedback</a>
             </p>
             <p>New in this version</p>
             <ul>
-                <li>New and improved UI</li>
+                <li>More new UI.</li>
+                <li>Prototype notes window.</li>
+                <li>Improve pagination for better accuracy.</li>
             </ul>
             <p>Known bugs</p>
             <ul>
-                <li>Pagination makes pages <i>slightly</i> too short and page count <i>slightly</i> too large</li>
+                <li>Font size is ever so slightly too large thanks to differences in Courier Final Draft and Courier New
+                </li>
                 <li>Character elements don't continue properly when the first element of a new page is a parenthetical
                 </li>
                 <li>Scene count doesn't appear on right side of scene headings</li>
@@ -69,6 +72,7 @@
             <div>
             </div>
         </div>
+        <notes-table></notes-table>
         <template id="template-settings">
             <div id="settings-content">
                 <section id="page-settings">
@@ -184,11 +188,200 @@
         <template id="template-scene-props">
             <div></div>
         </template>
+        <template id="template-note-popover">
+            <div class="note-popover" role="dialog" aria-labelledby="note-popover-title" data-note-id="note-12">
+                <span class="note-popover__caret" aria-hidden="true"></span>
 
+                <header class="note-popover__header">
+                    <!-- <span class="note-chip" data-type="comment" data-bind="type">Comment</span> -->
+                    <span class="note-popover__title" id="note-popover-title"></span>
+                    <button class="note-icon-btn" aria-label="More actions" data-action="more">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <circle cx="3" cy="8" r="1.4" />
+                            <circle cx="8" cy="8" r="1.4" />
+                            <circle cx="13" cy="8" r="1.4" />
+                        </svg>
+                    </button>
+                    <button class="note-icon-btn" aria-label="Close" data-action="close">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                            stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                            <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                    </button>
+                </header>
+                <table class="note-fields note-fields--fixed">
+                </table>
+                <div class="note-body">
+                    <label class="note-body__label" for="note-body">Note</label>
+                    <textarea class="note-body__input" id="note-body" data-field="body"></textarea>
+                </div>
+                <footer class="note-popover__footer">
+                    <button class="note-btn note-btn--danger" data-action="delete">Delete</button>
+                    <div class="note-popover__actions">
+                        <button class="note-btn" data-action="cancel">Cancel</button>
+                        <button class="note-btn note-btn--primary" data-action="save">Save</button>
+                    </div>
+                </footer>
+            </div>
+        </template>
+        <template id="template-notes-table">
+            <div class="notes-ui" style="position: relative;" popover="manual">
+                <header>
+                    <button class="note-icon-btn" aria-label="Close" data-action="close">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                            stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                            <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                    </button>
+                </header>
+                <div class="notes-toolbar">
+                    <div>
+                        <h1 class="notes-toolbar__title">Notes</h1>
+                        <div class="notes-toolbar__count" data-bind="count">9 notes in this script</div>
+                    </div>
+                    <div class="notes-toolbar__controls">
+                        <label for="notes-q" style="position:absolute;left:-9999px">Search notes</label>
+                        <input class="notes-search" id="notes-q" placeholder="Search notes">
+                        <select class="notes-filter" data-filter="type" title="note type">
+                            <option value="all" selected="selected">All</option>
+                            <option value="ScriptNotes">Script Notes</option>
+                            <option value="SceneProps">Scene Properties</option>
+                            <option value="Comments">Comments</option>
+                            <option value="Beats">Beats</option>
+                            <option value="StructurePoints">Structure Points</option>
+                            <option value="Bookmarks">Bookmarks</option>
+                            <option value="Sfx">SFX</option>
+                            <option value="Vfx">VFX</option>
+                            <option value="Props">Props</option>
+                        </select>
+                        <div class="sort-select">
+                            <button class="sort-order" value="descending" title="descending"><img
+                                    src="./img/material-icons/arrow_downward_24dp_E3E3E3_FILL0_wght100_GRAD0_opsz24.svg"
+                                    alt="" srcset=""></button>
+                            <select class="notes-filter sort-by" data-filter="sort">
+                                <option value="page" selected="selected">Page</option>
+
+                                <option value="author">Author</option>
+                                <option value="date-created">Date Created</option>
+                                <option value="date-modified">Date Modified</option>
+                                <option value="page-num">Page Number</option>
+                                <option value="note-type">Note Type</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="notes-table-wrap">
+                    <table class="notes-table">
+                        <colgroup>
+                            <col style="width:120px">
+                            <col style="width:320px">
+                            <col style="width:70px">
+                            <col style="width:150px">
+                            <col style="width:110px">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th scope="col">Type</th>
+                                <th scope="col">Note</th>
+                                <th scope="col">Page</th>
+                                <th scope="col">Author</th>
+                                <th scope="col">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-note-id="note-2">
+                                <td><span class="note-chip" data-type="scene-property">Scene Property</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Intro protagonist</button>
+                                </td>
+                                <td>2</td>
+                                <td>Joe Hansen</td>
+                                <td>Feb 18</td>
+                            </tr>
+                            <tr data-note-id="note-18">
+                                <td><span class="note-chip" data-type="beat">Beat</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Protagonist meets
+                                        antagonist</button></td>
+                                <td>5</td>
+                                <td>Emma Eastman</td>
+                                <td>Oct 22</td>
+                            </tr>
+                            <tr data-note-id="note-21">
+                                <td><span class="note-chip" data-type="structure-point">Structure Point</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Refuse the call</button>
+                                </td>
+                                <td>15</td>
+                                <td>Daniel Price</td>
+                                <td>Jun 13</td>
+                            </tr>
+                            <tr data-note-id="note-21">
+                                <td><span class="note-chip" data-type="bookmark">Bookmark</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Rewrite later</button>
+                                </td>
+                                <td>21</td>
+                                <td>Adam Smith</td>
+                                <td>Oct 31</td>
+                            </tr>
+                            <tr data-note-id="note-5">
+                                <td><span class="note-chip" data-type="script-note">Script Note</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Punch up this joke</button>
+                                </td>
+                                <td>36</td>
+                                <td>Evan Reuben</td>
+                                <td>Mar 2</td>
+                            </tr>
+                            <tr data-note-id="note-12" class="is-selected" aria-selected="true">
+                                <td><span class="note-chip" data-type="comment">Comment</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">This happened to me in a
+                                        dream</button></td>
+                                <td>44</td>
+                                <td>Eric Leigh</td>
+                                <td>Apr 20</td>
+                            </tr>
+
+                            <tr data-note-id="note-21">
+                                <td><span class="note-chip" data-type="vfx">VFX</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Green screen needed</button>
+                                </td>
+                                <td>51</td>
+                                <td>Neal Carter</td>
+                                <td>Dec 25</td>
+                            </tr>
+                            <tr data-note-id="note-21">
+                                <td><span class="note-chip" data-type="sfx">SFX</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Wilhelm scream here</button>
+                                </td>
+                                <td>73</td>
+                                <td>Justin Smith</td>
+                                <td>Jan 7</td>
+                            </tr>
+                            <tr data-note-id="note-21">
+                                <td><span class="note-chip" data-type="prop">Prop</span></td>
+                                <td><button class="notes-row__open" data-action="open-note">Pepper spray and cowboy
+                                        hat</button>
+                                </td>
+                                <td>87</td>
+                                <td>Cayla Sacre</td>
+                                <td>Aug 15</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Popover mount: position left/top from the clicked row's bounding rect.
+       Remove the style attribute and set it from JS in your app. -->
+                <div class="note-popover-anchor" style="left: 150px; top: 300px;">
+
+                </div>
+
+            </div>
+        </template>
     </main>
     <script src="@pdf-lib-fontkit/fontkit.umd.min.js"></script>
     <script src="pdf-lib/pdf-lib.min.js"></script>
     <script src="HeaderMenu.js" type="module"></script>
+    <script src="NotePopover.js" type="module"></script>
+    <script src="NotesTable.js" type="module"></script>
     <script src="index.js" type="module" defer></script>
 </body>
 

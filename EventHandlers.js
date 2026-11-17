@@ -70,6 +70,7 @@ export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptN
     } else {
         newBlankScript(state);
     }
+    state.Notes.loadNotes(scenePropertiesEl, scriptNotesEl)
     for (const Note of [...document.getElementsByTagName("scriptnote"), ...document.getElementsByTagName("sceneproperty")]) {
         Note.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, state.Notes))
         // Note.querySelector("content").classList.remove("active")
@@ -614,8 +615,6 @@ export function handleVisibilityChange(e, state, scriptWrapper, fileNameInput) {
         fileNameInput,
         state.Script.CharacterSet,
         state.Navigation.LastFocusedElement,
-        // scriptNotesEl,
-        // scenePropertiesEl,
         state.Settings.PageSettings,
         state.Notes
     )

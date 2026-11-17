@@ -236,8 +236,8 @@ export function reformatScreenplay(currentElement, currentPage, scriptWrapper, s
     const [allElements, combinedCurrentElement, combinedLastCursorPosition] = getAllScreenplayElements(currentElement, lastCursorPosition);
     currentElement = combinedCurrentElement
     lastCursorPosition = combinedLastCursorPosition
-    scriptWrapper.innerHTML = ""
     const [newPages, newCurrentElement, newLastCursorPosition] = paginateScreenplay(allElements, currentElement, lastCursorPosition)
+    scriptWrapper.innerHTML = ""
     currentElement = newCurrentElement
     lastCursorPosition = newLastCursorPosition
     for (const newPage of newPages) {
