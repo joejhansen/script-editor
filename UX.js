@@ -1,4 +1,6 @@
 import { stripCharacterExtenstion } from "./EventHandlers.js";
+import { Notes } from "./Notes.js";
+import { NotesTable } from "./NotesTable.js";
 import { getLastSceneHeadingSlug, getSceneLength, numAsClosestFraction, paginateScreenplay } from "./Pagination.js";
 import { handleToggleNote, loadBlankXMLDoc, loadDefaultSettings, ScenePropertiesEl, ScenePropertyTemplate } from "./ScriptConversion.js";
 import { AUTOCOMPLETE_TAGS, DEFAULT_EXTENSIONS, DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_WIDTH_INCHES, DEFAULT_RIGHT_MARGIN_INCHES, DEFAULT_SCENE_INTROS, DEFAULT_TIMES_OF_DAY, DEFAULT_TRANSITIONS, EXTENSION_REGEX, getChildElementIndex, HTML_TAG_NAMES, PIXELS_PER_INCH, SCENE_INTRO_REGEX, tagToFDXType, TIME_OF_DAY_REGEX, VALID_FDX_TYPES } from "./ScriptSettings.js";
@@ -111,7 +113,7 @@ export function restoreScrollPosition(state, scriptWrapper) {
  * @param {HTMLElement} el 
  */
 export function emptyElement(el) {
-    while (el.firstChild) el.removeChild(el.firstChild)
+    el.innerHTML = "";
 }
 
 /**
@@ -155,13 +157,16 @@ export function removeUndoIDs(scriptWrapper) { // globals
 /**
  * @param {Node} node
  * @param {State} state
+ * @param {HTMLElement} scriptWrapper 
+ * @param {HTMLInputElement} fileNameInput 
+ * @param {ShadowRoot} notesTableEl 
  * @returns {[HTMLElement, HTMLElement]} A child script element and the page it exists within
  */
 export function getScriptElementAndCurrentPage(node, state, scriptWrapper, fileNameInput) { // globals
     let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (scriptEl.tagName === "ARTICLE") {
         if (scriptEl.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
-            newBlankScript(state, scriptWrapper, fileNameInput, true)
+            newBlankScript(state, scriptWrapper, fileNameInput, document.querySelector("notes-table").shadowRoot, true)
             return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
         } else {
             return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
@@ -283,15 +288,19 @@ export function getAllScreenplayElements(currentElement = null, lastCursorPositi
 /**
  * Loads or resets default settings,
  * @param {State} state 
+ * @param {HTMLElement} scriptWrapper 
+ * @param {HTMLInputElement} fileNameInput 
+ * @param {ShadowRoot} noteTableEl 
  * @param {boolean} preserveCurrentInfo
  */
-export function newBlankScript(state, scriptWrapper, fileNameInput, preserveCurrentInfo = false) { // globals
+export function newBlankScript(state, scriptWrapper, fileNameInput, noteTableEl, preserveCurrentInfo = false) { // globals
     if (!preserveCurrentInfo) {
         loadDefaultSettings(state.Settings).catch(e => console.warn(e));
         loadBlankXMLDoc(state.Script).catch(e => console.warn(e))
         state.Script.CharacterSet = new Set();
         state.UndoStack = new UndoStack();
         fileNameInput.value = "New Script";
+        state.Notes = new Notes()
     }
     emptyElement(scriptWrapper)
     emptyElement(document.querySelector("scriptnotes"))
@@ -306,6 +315,8 @@ export function newBlankScript(state, scriptWrapper, fileNameInput, preserveCurr
     switchLastFocusedElement(newSceneHeading, state.Navigation);
     setCursorPosition(state.Navigation.LastFocusedElement, 0, state.Navigation)
     state.Navigation.EditingTitlePage = false;
+    emptyElement(noteTableEl.querySelector("tbody"))
+    NotesTable.makeNotesTable(noteTableEl, state.Notes)
 }
 
 let lastAutocomplete = ""; // I'm not sure we need this, might just add more complexity than is needed

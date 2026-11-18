@@ -1,3 +1,4 @@
+import { NotesTable } from "./NotesTable.js";
 import { handleToggleNote } from "./ScriptConversion.js";
 
 export class NoteMenu {
@@ -73,6 +74,12 @@ export class NoteMenu {
      */
     updateNoteContent(id, cat, data) {
         this.Data[id][cat] = data;
+    }
+    updateNoteIDField(id, field, data) {
+        this.Data[id][field] = data
+    }
+    updateNoteTable(id, data, table) {
+
     }
     /**
      * @param {string} oldKey 
@@ -192,32 +199,25 @@ export class NoteMenu {
      */
     makeNoteTooltip(id) {
         if (!this.Data[id]) return null;
-        return NoteMenu.makeNoteTooltipStatic(id, this.Data[id])
+        return NoteMenu.makeNoteTooltipStatic(id, this.Data[id], this)
     }
     /**
      * @param {string} id
      * @param {string} noteType 
      * @param {Object.<string,string>} noteObj 
-     * @returns {HTMLElement}
+     * @param {NoteMenu} noteMenu 
+     * @param {(el) => void} close 
+     * @returns {Node}
      */
-    static makeNoteTooltipStatic(id, noteType, noteObj) {
+    static makeNoteTooltipStatic(id, noteType, noteObj, noteMenu, close) {
         /** @type {Node} */
-        const NewNotePopover = document.importNode(document.getElementById("template-note-popover").content, true)
-        NewNotePopover.id = id;
-        // NewNotePopover.
-        // NewNotePopover.style
-        // const newPopover = document.createElement("div")
-        // newPopover.classList.add("note")
-        // newPopover.id = id
-        NewNotePopover.getElementById("note-popover-title").textContent = noteType
-        // <tr>
-        //     <th scope="row"></th>
-        //     <td data-bind=""></td>
-        // </tr>
+        const NewNotePopover = document.importNode(document.getElementById("template-note-popover").content, true).firstElementChild
+        NewNotePopover.querySelector("#note-popover-title").textContent = noteType
         const NoteFields = NewNotePopover.querySelector("table")
+
         for (const note in noteObj) {
             if (note === "Content") {
-                NewNotePopover.getElementById("note-body").textContent = noteObj[note]
+                NewNotePopover.querySelector("#note-body").textContent = noteObj[note]
                 continue
             }
             const newRow = document.createElement("tr")
@@ -226,16 +226,26 @@ export class NoteMenu {
             newHeading.textContent = note;
             const newData = document.createElement("td")
             newData.dataset.bind = note
-            newData.textContent = noteObj[note]
+            newData.textContent = note === "DateModified" || note === "DateTime" ? new Date(noteObj[note]).toLocaleString(): noteObj[note]
             newRow.appendChild(newHeading)
             newRow.appendChild(newData)
-            // newData.textContent = noteObj[note]
-            // const newNote = document.createElement("div")
-            // newNote.dataset[note] = noteObj[note]
-            // newNote.textContent = `${note}: ${noteObj[note]}`
             NoteFields.appendChild(newRow)
         }
-        return NewNotePopover;
+        // const close = (e) => {
+        //     NewNotePopover.removeChild()
+        // }
+        NewNotePopover.querySelector(".close-note-btn").addEventListener("click", (e) => close(NewNotePopover))
+        NewNotePopover.querySelector(".cancel-note-btn").addEventListener("click", (e) => close(NewNotePopover))
+        NewNotePopover.querySelector(".save-note-btn").addEventListener("click", (e) => {
+            noteMenu.updateNoteIDField(id, "Content", NewNotePopover.querySelector("#note-body").value)
+            NotesTable.updateNoteRow(document.querySelector("notes-table").shadowRoot, id, noteObj, noteType, noteMenu)
+            close(NewNotePopover)
+        })
+        NewNotePopover.querySelector(".delete-note-btn").addEventListener("click", (e) => {
+            noteMenu.deleteNote(id)
+            close(NewNotePopover)
+        })
+        return NewNotePopover
     }
     /**
      * @param {string} id 
@@ -334,11 +344,11 @@ export class Notes {
     }
     /**
      * @param {string} id
-     * @returns {[string, Object.<string,string]} 
+     * @returns {[string, Object.<string,string>, NoteMenu]} 
      */
     getNote(id) {
         for (const noteMenu of Object.keys(this)) {
-            if (this[noteMenu].Data[id]) return [this[noteMenu].NoteType, this[noteMenu].Data[id]]
+            if (this[noteMenu].Data[id]) return [this[noteMenu].NoteType, this[noteMenu].Data[id], this[noteMenu]]
         }
         console.warn(`Note ID ${id} not found.`)
         return {};
@@ -348,8 +358,8 @@ export class Notes {
      * @returns {HTMLElement | null}
      */
     getNoteTooltip(id) {
-        const [thisNoteType, thisNote] = this.getNote(id)
-        return NoteMenu.makeNoteTooltipStatic(id, thisNoteType, thisNote)
+        const [thisNoteType, thisNote, noteMenu] = this.getNote(id)
+        return NoteMenu.makeNoteTooltipStatic(id, thisNoteType, thisNote, noteMenu)
     }
     /**
      * @param {Object.<string,Object.<string,Object.<string,string>>>} data 
@@ -361,5 +371,17 @@ export class Notes {
             if (data[noteMenu]) newNotes[noteMenu] = NoteMenu.fromSave(Notes.KeysToStrings[noteMenu], data[noteMenu].Data)
         }
         return newNotes
+    }
+    /**
+     * @param {string} id 
+     * @param {Object.<string,string>} data 
+     * @returns {boolean}
+     */
+    updateNote(id, data) {
+        for (const noteMenu of Object.keys(this)) {
+            if (this[noteMenu].Data[id]) this[noteMenu].Data[id] = data
+            return true;
+        }
+        return false
     }
 }

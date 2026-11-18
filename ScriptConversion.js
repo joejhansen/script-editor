@@ -1,7 +1,9 @@
 import { NoteMenu, Notes } from "./Notes.js";
+import { NotesTable } from "./NotesTable.js";
 import { forceScale, scalePage } from "./PageScaler.js";
 import { paginateScreenplay } from "./Pagination.js";
 import { ALL_CAPS_ELEMENTS, DEFAULT_FONT_SIZE_PIXELS, DEFAULT_FONT_SIZE_POINTS, DEFAULT_LEFT_MARGIN_INCHES, DEFAULT_PAGE_HEIGHT_INCHES, DEFAULT_PAGE_WIDTH_INCHES, NOTE_ELEMENTS, PIXELS_PER_INCH, POINTS_PER_INCH, tagToFDXType } from "./ScriptSettings.js";
+import { State } from "./State.js";
 import { getAllScreenplayElements, getElementMaxWidth } from "./UX.js";
 
 const { PDFDocument, StandardFonts, rgb } = PDFLib
@@ -23,17 +25,16 @@ export function handleToggleNote(e, notes) {
     e.preventDefault();
     e.stopPropagation()
     /** @type {HTMLElement} */
+    lastNoteOpened?.remove();
+    lastNoteOpened = null;
     const someEl = e.target.parentElement
-    if (lastNoteOpened === someEl) {
-        someEl.removeChild(someEl.lastElementChild);
-        lastNoteOpened = null;
-
-    } else {
-        if (lastNoteOpened) lastNoteOpened.removeChild(lastNoteOpened.lastElementChild)
-        const newNote = notes.getNoteTooltip(someEl.id);
-        someEl.appendChild(newNote)
-        lastNoteOpened = someEl;
-    }
+    if (lastNoteOpened?.parentElement === someEl) return
+    // if (lastNoteOpened) lastNoteOpened.removeChild(lastNoteOpened.lastElementChild)
+    const close = (el) => { lastNoteOpened = null; el.remove() }
+    const [thisNoteType, thisNote, noteMenu] = notes.getNote(someEl.id)
+    const newNote = NoteMenu.makeNoteTooltipStatic(someEl.id, thisNoteType, thisNote, noteMenu, close)
+    lastNoteOpened = newNote;
+    someEl.appendChild(newNote)
 }
 /**
  * For some reason, FDX uses ISO 8601 dates but without any punctuation or the last character "Z"
@@ -52,6 +53,7 @@ function JSDateToFDXDate(str) {
     try {
         const NewDate = new Date(str)
         res = NewDate.toISOString().replace(/[-:Z.]/g, "")
+        res = res.substring(0, res.length-3)
     } catch (e) {
         console.warn(e)
     }
@@ -70,8 +72,8 @@ function scriptNoteToHTML(noteEl, notesObj) {
     for (const Attribute of ["Author", "Color", "DateModified", "DateTime", "Name", "Type"]) {
         let thisAttribute = noteEl.getAttribute(Attribute);
         if (Attribute === "DateModified" || Attribute === "DateTime") {
-            const NewDate = new Date(FDXDateToJSDate(thisAttribute));
-            thisAttribute = `${NewDate.toLocaleDateString()} ${NewDate.toLocaleTimeString()}`
+            const NewDate = new Date(FDXDateToJSDate(thisAttribute)).toISOString();
+            thisAttribute = NewDate
             NewNote[Attribute] = thisAttribute;
         } else if (thisAttribute) {
             NewNote[Attribute] = thisAttribute
@@ -90,18 +92,23 @@ function scriptNoteToHTML(noteEl, notesObj) {
     return NewUUID;
 }
 /**
- * @param {HTMLElement} el 
+ * @param {Object.<string,string>} noteData 
  * @param {Document} doc
  * @returns {Element}
  */
-export function htmlToScriptNote(el, doc) {
+export function htmlToScriptNote(noteData, doc) {
     const NewScriptNote = doc.createElement("ScriptNote");
     const NewParagraph = doc.createElement("Paragraph");
     const NewText = doc.createElement("Text")
-    for (const Attribute of ["Author", "Color", "DateModified", "DateTime", "Name", "Type"]) {
-        NewScriptNote.setAttribute(Attribute, el.dataset[Attribute])
+    for (const Attribute of ["Author", "Color", "Name", "Type"]) {
+        if (noteData[Attribute]) {
+            NewScriptNote.setAttribute(Attribute, noteData[Attribute])
+        }
     }
-    NewText.textContent = el.textContent.substring(el.textContent.lastIndexOf(":") + 2);
+    for (const Attribute of ["DateModified", "DateTime"]) {
+        NewScriptNote.setAttribute(Attribute, JSDateToFDXDate(new Date(noteData[Attribute]).toISOString()))
+    }
+    NewText.textContent = noteData["Content"];
     NewParagraph.appendChild(NewText)
     NewScriptNote.appendChild(NewParagraph)
     return NewScriptNote;
@@ -144,22 +151,22 @@ function scenePropertiesToHTML(noteEl, notesObj) {
 }
 
 /**
- * @param {HTMLElement} el 
+ * @param {Object.<string,string>} noteData 
  * @param {Document} doc
  * @returns {Element}
  */
-export function htmlToSceneProperties(el, doc) {
+export function htmlToSceneProperties(noteData, doc) {
     const NewSceneProperties = doc.createElement("SceneProperties");
-    NewSceneProperties.setAttribute("Length", el.dataset["Length"]);
-    NewSceneProperties.setAttribute("Page", el.dataset["Page"]);
-    NewSceneProperties.setAttribute("Title", el.dataset["Title"]);
+    NewSceneProperties.setAttribute("Length", noteData["Length"]);
+    NewSceneProperties.setAttribute("Page", noteData["Page"]);
+    NewSceneProperties.setAttribute("Title", noteData["Title"]);
     const NewSceneArcBeats = doc.createElement("SceneArcBeats")
-    for (const CharArc of el.querySelectorAll("characterarcbeat")) {
+    for (const CharArc of noteData["Characters"].replace(",","").split(" ")) {
         const NewCharArc = doc.createElement("CharacterArcBeat")
         const NewParagraph = doc.createElement("Paragraph")
         const NewText = doc.createElement("Text")
-        NewCharArc.setAttribute("Name", CharArc.dataset["Name"])
-        NewText.textContent = CharArc.textContent;
+        NewCharArc.setAttribute("Name", CharArc)
+        NewText.textContent = CharArc;
         NewParagraph.appendChild(NewText)
         NewCharArc.appendChild(NewParagraph)
         NewSceneArcBeats.appendChild(NewCharArc)
@@ -450,6 +457,8 @@ export function loadTitlePage(doc) {
 /**
  * @param {Event} event
  * @param {State} state
+ * @param {HTMLButtonElement} titlePageButton 
+ * @param {HTMLInputElement} fileNameInput
  */
 export function downloadFDX(event, state, titlePageButton, fileNameInput) { // globals
     event.preventDefault();
@@ -468,7 +477,7 @@ export function downloadFDX(event, state, titlePageButton, fileNameInput) { // g
         let scriptNoteAdded = false;
         for (const [i, el] of allElements.entries()) {
             if (el.dataset.noteID) {
-                HTMLtoFDX(newContentDoc, el, state.Settings, document.getElementById(el.dataset.noteID))
+                HTMLtoFDX(newContentDoc, el, state.Settings, state.Notes.getNote(el.dataset.noteID))
             } else {
                 HTMLtoFDX(newContentDoc, el, state.Settings)
             }
@@ -777,16 +786,17 @@ function triggerDownload(bytes, filename) {
  * @param {Document} doc
  * @param {HTMLElement} el 
  * @param {Settings} settings
- * @param {HTMLElement | null} scriptNote
+ * @param {[string, Object.<string,string>, NoteMenu] | null} scriptNote
  */
 function HTMLtoFDX(doc, el, settings, scriptNote = null) { // globals
     /** @type {Element|null} */
     let maybeScriptNote = null;
     if (scriptNote) {
-        if (scriptNote.tagName === "SCENEPROPERTY") {
-            maybeScriptNote = htmlToSceneProperties(scriptNote, doc)
-        } else if (scriptNote.tagName === "SCRIPTNOTE") {
-            maybeScriptNote = htmlToScriptNote(scriptNote, doc)
+        const [noteType, noteData, noteMenu] = scriptNote;
+        if (noteType === "Scene Property" || noteType === "Scene Properties") {
+            maybeScriptNote = htmlToSceneProperties(noteData, doc)
+        } else if (noteType === "Script Note") {
+            maybeScriptNote = htmlToScriptNote(noteData, doc)
         }
     }
     let paraEl = doc.createElement("Paragraph")

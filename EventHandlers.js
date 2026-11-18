@@ -1,6 +1,7 @@
 import { handleTextStyling, STYLE_CLASSES } from "./InlineStyling.js"
 import { saveCurrentScreenplay, tryGetLastScreenplay } from "./LocalStorage.js"
 import { Notes } from "./Notes.js"
+import { NotesTable } from "./NotesTable.js"
 import { scalePage } from "./PageScaler.js"
 import { paginateScreenplay } from "./Pagination.js"
 import { Script } from "./Script.js"
@@ -13,8 +14,13 @@ import { ALIGNMENT_SHORTCUT_KEYS, ALIGNMENT_SHORTCUT_TO_RULE, ARROW_KEYS, attach
 /**
 * @param {Event} e 
 * @param {State} state
+* @param {HTMLElement} scriptWrapper 
+* @param {HTMLElement} scenePropertiesEl 
+* @param {HTMLElement} scriptNotesEl 
+* @param {HTMLElement} fileNameInput 
+* @param {ShadowRoot} notesTableEl 
 */
-export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptNotesEl, fileNameInput) { // globals
+export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptNotesEl, fileNameInput, notesTableEl) { // globals
     scalePage()
     // document.getElementsByClassName("option-menu")[0].showPopover()
 
@@ -68,20 +74,24 @@ export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptN
         else setCursorPosition(state.Navigation.LastFocusedElement, 0, state.Navigation)
         removeUndoIDs(scriptWrapper)
     } else {
-        newBlankScript(state);
+        newBlankScript(state, scriptWrapper, fileNameInput, notesTableEl);
     }
     state.Notes.loadNotes(scenePropertiesEl, scriptNotesEl)
     for (const Note of [...document.getElementsByTagName("scriptnote"), ...document.getElementsByTagName("sceneproperty")]) {
         Note.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, state.Notes))
         // Note.querySelector("content").classList.remove("active")
     }
+    NotesTable.makeNotesTable(notesTableEl, state.Notes)
 }
 
 /**
  * @param {Event} event 
  * @param {State} state
+ * @param {HTMLElement} scriptWrapper 
+ * @param {HTMLInputElement} fileNameInput 
+ * @param {ShadowRoot} notesTableEl 
  */
-export function handleFileInput(event, state, scriptWrapper, fileNameInput) { // globals
+export function handleFileInput(event, state, scriptWrapper, fileNameInput, notesTableEl) { // globals
     event.preventDefault()
     emptyElement(document.querySelector("scriptnotes"))
     emptyElement(document.querySelector("sceneproperties"))
@@ -89,6 +99,7 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput) { //
     const file = event.target.files?.[0]
     if (!file) console.warn("DEBUG:\t handleFileInput -> Something went wrong loading file")
     parseXMLFromFile(file).then(doc => {
+        notesTableEl.querySelector("tbody").innerHTML = "";
         while (scriptWrapper.firstChild) {
             scriptWrapper.removeChild(scriptWrapper.firstChild)
         }
@@ -97,6 +108,7 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput) { //
         state.Settings.ScriptSettings = LoadElSettings(doc);
         state.Script.CharacterSet = getCharacterInfo(doc);
         state.Script.TitlePageOuterHTML = loadTitlePage(doc).map(e => e.outerHTML).join('')
+        state.Notes = new Notes();
         const [screenplayPages, _, __] = paginateScreenplay(XMLtoHTML(doc, state.Notes));
         for (const page of screenplayPages) {
             scriptWrapper.appendChild(page);
@@ -107,6 +119,8 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput) { //
         state.Script.ScriptInnerHTML = scriptWrapper.innerHTML
         state.UndoStack = new UndoStack()
         state.Navigation.EditingTitlePage = false;
+        emptyElement(notesTableEl.querySelector("tbody"))
+        NotesTable.makeNotesTable(notesTableEl, state.Notes)
     }).catch(e => console.warn(e))
 }
 
@@ -150,13 +164,13 @@ function handleArrowKeysUp(e, el, page, state) { // globals
  * @param {InputEvent} event 
  * @param {State} state
  */
-export function handleBeforeInput(event, state, scriptWrapper, currentPageTracker, fileNameInput) { // globals
+export function handleBeforeInput(event, state, scriptWrapper, currentPageTracker, fileNameInput, notesTableEl) { // globals
     if (event.inputType === "insertParagraph") {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
         handleEnterKey(event, child, currentPage, state, scriptWrapper, currentPageTracker, fileNameInput)
     } else if (DELETE_INPUT_TYPES.includes(event.inputType)) {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
-        handleDeletion(event, child, currentPage, state, scriptWrapper)
+        handleDeletion(event, child, currentPage, state, scriptWrapper, fileNameInput, notesTableEl)
     } else if (event.inputType === 'insertText' || event.inputType === 'insertFromPaste') {
         const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
         if (!(child === state.Navigation.LastSnapshotElement && state.UndoStack.singleAddLast && event.inputType === "insertText")) {
@@ -176,7 +190,7 @@ export function handleBeforeInput(event, state, scriptWrapper, currentPageTracke
  * @param {InputEvent} event 
  * @param {State} state
  */
-export function handleInput(event, state, scriptWrapper, fileNameInput) { // globals
+export function handleInput(event, state, scriptWrapper, fileNameInput, notesTableEl) { // globals
     const [child, currentPage] = getScriptElementAndCurrentPage(document.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
     const range = document.createRange();
     range.selectNodeContents(child)
@@ -185,7 +199,7 @@ export function handleInput(event, state, scriptWrapper, fileNameInput) { // glo
 
     handleAutocomplete(event, child, currentPage, state.Script);
     if (scriptWrapper.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {// edge case where all elements are empty with <br>
-        newBlankScript(state, true)
+        newBlankScript(state, scriptWrapper, fileNameInput, notesTableEl, true)
     } else {
         if ((state.Navigation.LastElementLineCount != newLineCount && state.Navigation.LastFocusedElement === child) || !state.Navigation.LastFocusedElement) reformatScreenplay(child, currentPage, scriptWrapper, state, fileNameInput)
         else if (DELETE_INPUT_TYPES.includes(event.inputType) && state.Navigation.LastFocusedElement !== child) reformatScreenplay(child, currentPage, scriptWrapper, state, fileNameInput)
@@ -272,7 +286,7 @@ function handleEnterKey(event, el, currentPage, state, scriptWrapper, currentPag
  * @param {Element} currentPage
  * @param {State} state
  */
-function handleDeletion(event, el, currentPage, state, scriptWrapper) { // globals
+function handleDeletion(event, el, currentPage, state, scriptWrapper, fileNameInput, notesTableEl) { // globals
     const selection = document.getSelection();
     const range = selection.getRangeAt(0);
 
@@ -312,7 +326,7 @@ function handleDeletion(event, el, currentPage, state, scriptWrapper) { // globa
             switchLastFocusedElement(newTitleText, state.Navigation)
             setCursorPosition(state.Navigation.LastFocusedElement, 0, state.Navigation)
         } else {
-            newBlankScript(state, scriptWrapper, FileNameInput, true);
+            newBlankScript(state, scriptWrapper, fileNameInput, notesTableEl, true);
         }
     }
 }
