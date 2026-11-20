@@ -22,7 +22,6 @@ export class Script {
         blankScriptXML = null,
         scriptNotesInnerHTML = "",
         scenePropertiesInnerHTML = "",
-
     ) {
         /** @type {string} */
         this.FileName = fileName

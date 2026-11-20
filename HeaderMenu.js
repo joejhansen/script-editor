@@ -1,6 +1,6 @@
 import styles from "./windows/header-menu/header-menu.css" with {type: "css" };
 
-class HeaderMenu extends HTMLElement {
+export class HeaderMenu extends HTMLElement {
     static styles = styles;
     static templateId = "template-header"; // subclass sets this, or override templateId
     connectedCallback() {
@@ -153,26 +153,26 @@ class HeaderMenu extends HTMLElement {
                 name: "Notes", groups: [
                     {
                         name: 'General', items: [
+                            { label: 'Add', icon: "addNote", size: 'lg', id: "add-note-button" },
                             { label: 'All Notes', icon: "allNotes", size: 'lg', id: "all-notes-button" },
-                            { label: 'Add', icon: "addNote", size: 'lg', id: "add-notes-button" },
-                            { label: 'Comments', icon: "comments", size: 'lg',id:"comments-table-button" },
-                            { label: 'Bookmarks', icon: "bookmarks", size: 'lg',id:"bookmarks-table-button" }
+                            { label: 'Comments', icon: "comments", size: 'lg', id: "comments-table-button" },
+                            { label: 'Bookmarks', icon: "bookmarks", size: 'lg', id: "bookmarks-table-button" }
                         ]
                     },
                     {
                         name: 'Story', items: [
-                            { label: 'Scenes', icon: "scene", size: 'lg',id:"scenes-table-button" },
-                            { label: "Script Notes", icon:"scriptNote", size:"lg", id:"script-note-table-button"},
-                            { label: 'Beats', icon: "beats", size: 'lg',id:"beats-table-button" },
-                            { label: 'Structure Points', icon: "structure", size: 'lg',id:"structure-table-button" },
-                            { label: "Characters", icon: "characters", size: 'lg', fill: "currentColor",id:"characters-table-button" }
+                            { label: 'Scenes', icon: "scene", size: 'lg', id: "scenes-table-button" },
+                            { label: "Script Notes", icon: "scriptNote", size: "lg", id: "script-note-table-button" },
+                            { label: 'Beats', icon: "beats", size: 'lg', id: "beats-table-button" },
+                            { label: 'Structure Points', icon: "structure", size: 'lg', id: "structure-table-button" },
+                            { label: "Characters", icon: "characters", size: 'lg', fill: "currentColor", id: "characters-table-button" }
                         ]
                     },
                     {
                         name: "Production", items: [
-                            { label: 'SFX', icon: "sfx", size: 'lg',id:"sfx-table-button" },
-                            { label: 'VFX', icon: "vfx", size: 'lg',id:"vfx-table-button" },
-                            { label: 'Props', icon: "props", size: 'lg',id:"props-table-button" }
+                            { label: 'SFX', icon: "sfx", size: 'lg', id: "sfx-table-button" },
+                            { label: 'VFX', icon: "vfx", size: 'lg', id: "vfx-table-button" },
+                            { label: 'Props', icon: "props", size: 'lg', id: "props-table-button" }
                         ]
                     }
                 ]

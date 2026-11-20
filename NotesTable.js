@@ -24,15 +24,15 @@ export class NotesTable extends HTMLElement {
         const SortOrder = root.querySelector(".sort-order")
         const SortSelect = root.querySelector("#sort-filter")
         const FilterSelect = root.querySelector("#type-filter")
-        SortOrder.addEventListener("click", (e) => NotesTable.handleToggleSortOrder(e, root, SortSelect))
-        FilterSelect.addEventListener("change", (e) => NotesTable.handleFilterNotes(root, FilterSelect.value))
-        SortSelect.addEventListener("change", (e) => NotesTable.sortNotesBy(root, SortSelect.value, SortOrder.value))
+        SortOrder.addEventListener("click", (e) => this.handleToggleSortOrder(e, SortSelect))
+        FilterSelect.addEventListener("change", (e) => this.handleFilterNotes(root, FilterSelect.value))
+        SortSelect.addEventListener("change", (e) => this.sortNotesBy(SortSelect.value, SortOrder.value))
         root.querySelector("#close-note-table-button").addEventListener("click", (e) => this.handleCloseButton(e, root))
     }
     /**
      * @param {Event} e 
      */
-    static handleToggleSortOrder(e, root, sortSelect) {
+    handleToggleSortOrder(e, sortSelect) {
         e.preventDefault();
         let thisNode = e.target;
         while (thisNode.tagName !== "IMG") {
@@ -47,21 +47,22 @@ export class NotesTable extends HTMLElement {
             thisNode.parentElement.value = "descending"
             thisNode.setAttribute("src", NotesTable.ArrowDown)
         }
-        NotesTable.sortNotesBy(root, sortSelect.value, thisNode.parentElement.value)
+        this.sortNotesBy(sortSelect.value, thisNode.parentElement.value)
     }
+
     /**
      * @param {ShadowRoot} root 
      * @param {string} by 
      * @param {"ascending" | "descending"} order 
      */
-    static sortNotesBy(root, by, order) {
+    sortNotesBy(by, order) {
         // Page
         // Author
         // Date Created
         // Date Modified
         // Page Number
         // Note Type
-        const TBody = root.querySelector("tbody")
+        const TBody = this.shadowRoot.querySelector("tbody")
         const RowClones = [...TBody.children]
         if (by === "note-type") {
             RowClones.sort((a, b) => {
@@ -95,10 +96,10 @@ export class NotesTable extends HTMLElement {
     static handleNoteSearch(e) {
 
     }
-    static handleFilterNotes(root, by) {
+    handleFilterNotes(by) {
         /** @type {HTMLElement} */
-        const TBody = root.querySelector("tbody")
-        root.querySelector("#type-filter").value = by;
+        const TBody = this.shadowRoot.querySelector("tbody")
+        this.shadowRoot.querySelector("#type-filter").value = by;
         if (by === "all") {
             for (const row of TBody.children) {
                 row.classList.remove("hidden")
@@ -118,16 +119,14 @@ export class NotesTable extends HTMLElement {
     }
     /**
      * 
-     * @param {event} e 
-     * @param {ShadowRoot} root 
      * @param {Object.<string,string>} note
      * @param {string} noteID 
      * @param {string} noteType
-     * @param {HTMLElement} tbody 
      * @param {NoteMenu} noteMenu 
      * @return {HTMLTableRowElement}
      */
-    static makeTableRow(note, noteID, noteType, tbody, noteMenu) {
+    makeTableRow(note, noteID, noteType, noteMenu) {
+        const tbody = this.shadowRoot.querySelector("tbody")
         const NewRow = document.createElement("tr")
         NewRow.dataset.noteID = noteID
         NewRow.style.anchorName = `--note-table-${noteID}`
@@ -191,28 +190,26 @@ export class NotesTable extends HTMLElement {
         return NewRow
     }
     /**
-     * 
-     * @param {ShadowRoot} root 
      * @param {Notes} notes 
      */
-    static makeNotesTable(root, notes) {
+    makeNotesTable(notes) {
         /** @type {HTMLTableElement} */
-        const TBody = root.querySelector("tbody")
+        const TBody = this.shadowRoot.querySelector("tbody")
         // TBody.innerHTML = ""
         for (const NoteType in notes) {
             for (const NoteID in notes[NoteType].Data) {
-                TBody.appendChild(NotesTable.makeTableRow(notes[NoteType].Data[NoteID], NoteID, NoteType, TBody, notes[NoteType]))
+                TBody.appendChild(this.makeTableRow(notes[NoteType].Data[NoteID], NoteID, NoteType, notes[NoteType]))
             }
         }
     }
-    static open(e, root, noteType = "all") {
+    open(e, noteType = "all") {
         /** @type {HTMLElement} */
-        const table = root.querySelector(".notes-ui");
-        if (root.querySelector("#type-filter").value === noteType && table.matches(":popover-open")) {
+        const table = this.shadowRoot.querySelector(".notes-ui");
+        if (this.shadowRoot.querySelector("#type-filter").value === noteType && table.matches(":popover-open")) {
             table.hidePopover();
         } else {
             table.showPopover();
-            NotesTable.handleFilterNotes(root, noteType)
+            this.handleFilterNotes(noteType)
         }
 
     }
@@ -226,15 +223,30 @@ export class NotesTable extends HTMLElement {
      * @param {string | null} field 
      * @returns {boolean}
      */
-    static updateNoteRow(root, id, data, noteType, noteMenu, field = null) {
-        const TBody = root.querySelector("tbody")
+    updateNoteRow(id, data, noteType, noteMenu, field = null) {
+        const TBody = this.shadowRoot.querySelector("tbody")
         for (const row of TBody.children) {
             if (row.dataset.noteID === id) {
-                row.replaceWith(NotesTable.makeTableRow(data, id, noteType, TBody, noteMenu))
+                row.replaceWith(this.makeTableRow(data, id, noteType, noteMenu))
                 return true;
             }
         }
         return false;
+    }
+    /**
+     * @param {string} id 
+     */
+    deleteNoteRow(id) {
+        for (const row of this.shadowRoot.querySelector("tbody").children) {
+            if (row.dataset.noteID === id) {
+                row.remove();
+                return true;
+            }
+        }
+        return false;
+    }
+    something() {
+        console.log("here")
     }
 }
 /** @type {HTMLElement | null} */

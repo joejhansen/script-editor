@@ -159,14 +159,13 @@ export function removeUndoIDs(scriptWrapper) { // globals
  * @param {State} state
  * @param {HTMLElement} scriptWrapper 
  * @param {HTMLInputElement} fileNameInput 
- * @param {ShadowRoot} notesTableEl 
  * @returns {[HTMLElement, HTMLElement]} A child script element and the page it exists within
  */
 export function getScriptElementAndCurrentPage(node, state, scriptWrapper, fileNameInput) { // globals
     let scriptEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (scriptEl.tagName === "ARTICLE") {
         if (scriptEl.childElementCount <= 1 && !scriptWrapper.firstChild.firstChild) {
-            newBlankScript(state, scriptWrapper, fileNameInput, document.querySelector("notes-table").shadowRoot, true)
+            newBlankScript(state, scriptWrapper, fileNameInput, document.querySelector("notes-table"), true)
             return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
         } else {
             return [scriptWrapper.firstChild.firstChild, scriptWrapper.firstChild]
@@ -290,10 +289,10 @@ export function getAllScreenplayElements(currentElement = null, lastCursorPositi
  * @param {State} state 
  * @param {HTMLElement} scriptWrapper 
  * @param {HTMLInputElement} fileNameInput 
- * @param {ShadowRoot} noteTableEl 
+ * @param {NotesTable} notesTableEl 
  * @param {boolean} preserveCurrentInfo
  */
-export function newBlankScript(state, scriptWrapper, fileNameInput, noteTableEl, preserveCurrentInfo = false) { // globals
+export function newBlankScript(state, scriptWrapper, fileNameInput, notesTableEl, preserveCurrentInfo = false) { // globals
     if (!preserveCurrentInfo) {
         loadDefaultSettings(state.Settings).catch(e => console.warn(e));
         loadBlankXMLDoc(state.Script).catch(e => console.warn(e))
@@ -315,8 +314,8 @@ export function newBlankScript(state, scriptWrapper, fileNameInput, noteTableEl,
     switchLastFocusedElement(newSceneHeading, state.Navigation);
     setCursorPosition(state.Navigation.LastFocusedElement, 0, state.Navigation)
     state.Navigation.EditingTitlePage = false;
-    emptyElement(noteTableEl.querySelector("tbody"))
-    NotesTable.makeNotesTable(noteTableEl, state.Notes)
+    emptyElement(notesTableEl.shadowRoot.querySelector("tbody"))
+    notesTableEl.makeNotesTable(state.Notes)
 }
 
 let lastAutocomplete = ""; // I'm not sure we need this, might just add more complexity than is needed
@@ -480,14 +479,14 @@ function getCharactersInScene(el) {
     return res;
 }
 
-export function dragElement(elmnt) {
+export function dragElement(el) {
     var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-    if (document.getElementById(elmnt.id + "header")) {
+    if (document.getElementById(el.id + "header")) {
         // if present, the header is where you move the DIV from:
-        document.getElementById(elmnt.id + "header").onmousedown = dragMouseDown;
+        document.getElementById(el.id + "header").onmousedown = dragMouseDown;
     } else {
         // otherwise, move the DIV from anywhere inside the DIV:
-        elmnt.onmousedown = dragMouseDown;
+        el.onmousedown = dragMouseDown;
     }
 
     function dragMouseDown(e) {
@@ -510,8 +509,8 @@ export function dragElement(elmnt) {
         pos3 = e.clientX;
         pos4 = e.clientY;
         // set the element's new position:
-        elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
-        elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        el.style.top = (el.offsetTop - pos2) + "px";
+        el.style.left = (el.offsetLeft - pos1) + "px";
     }
 
     function closeDragElement() {

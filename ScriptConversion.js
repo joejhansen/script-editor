@@ -53,7 +53,7 @@ function JSDateToFDXDate(str) {
     try {
         const NewDate = new Date(str)
         res = NewDate.toISOString().replace(/[-:Z.]/g, "")
-        res = res.substring(0, res.length-3)
+        res = res.substring(0, res.length - 3)
     } catch (e) {
         console.warn(e)
     }
@@ -81,7 +81,7 @@ function scriptNoteToHTML(noteEl, notesObj) {
     }
     const NewUUID = window.crypto.randomUUID()
     NewNote["Content"] = noteEl.textContent.trim()
-    notesObj.ScriptNotes.newNote(NewUUID, NewNote)
+    notesObj.ScriptNotes.newNote(NewNote, NewUUID)
     NewScriptNote.style.positionAnchor = "--" + NewUUID
     NewScriptNote.style.top = `anchor(--${NewUUID} top)`
     NewScriptNote.style.right = `anchor(--${NewUUID} right)`
@@ -139,7 +139,7 @@ function scenePropertiesToHTML(noteEl, notesObj) {
     }
     NewNote["Characters"] = characters.join(", ")
     const NewUUID = window.crypto.randomUUID()
-    notesObj.SceneProps.newNote(NewUUID, NewNote)
+    notesObj.SceneProps.newNote(NewNote, NewUUID)
     NewSceneProperties.style.positionAnchor = "--" + NewUUID
     NewSceneProperties.style.top = `anchor(--${NewUUID} top)`
     NewSceneProperties.style.right = `anchor(--${NewUUID} right)`
@@ -161,7 +161,7 @@ export function htmlToSceneProperties(noteData, doc) {
     NewSceneProperties.setAttribute("Page", noteData["Page"]);
     NewSceneProperties.setAttribute("Title", noteData["Title"]);
     const NewSceneArcBeats = doc.createElement("SceneArcBeats")
-    for (const CharArc of noteData["Characters"].replace(",","").split(" ")) {
+    for (const CharArc of noteData["Characters"].replace(",", "").split(" ")) {
         const NewCharArc = doc.createElement("CharacterArcBeat")
         const NewParagraph = doc.createElement("Paragraph")
         const NewText = doc.createElement("Text")

@@ -18,7 +18,7 @@ import { ALIGNMENT_SHORTCUT_KEYS, ALIGNMENT_SHORTCUT_TO_RULE, ARROW_KEYS, attach
 * @param {HTMLElement} scenePropertiesEl 
 * @param {HTMLElement} scriptNotesEl 
 * @param {HTMLElement} fileNameInput 
-* @param {ShadowRoot} notesTableEl 
+* @param {NotesTable} notesTableEl 
 */
 export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptNotesEl, fileNameInput, notesTableEl) { // globals
     scalePage()
@@ -81,7 +81,8 @@ export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptN
         Note.querySelector("img").addEventListener("click", (e) => handleToggleNote(e, state.Notes))
         // Note.querySelector("content").classList.remove("active")
     }
-    NotesTable.makeNotesTable(notesTableEl, state.Notes)
+    notesTableEl.makeNotesTable(state.Notes)
+    // notesTableEl.firstElementChild.something();
 }
 
 /**
@@ -89,7 +90,7 @@ export function handleOnLoad(e, state, scriptWrapper, scenePropertiesEl, scriptN
  * @param {State} state
  * @param {HTMLElement} scriptWrapper 
  * @param {HTMLInputElement} fileNameInput 
- * @param {ShadowRoot} notesTableEl 
+ * @param {NotesTable} notesTableEl 
  */
 export function handleFileInput(event, state, scriptWrapper, fileNameInput, notesTableEl) { // globals
     event.preventDefault()
@@ -99,7 +100,7 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput, note
     const file = event.target.files?.[0]
     if (!file) console.warn("DEBUG:\t handleFileInput -> Something went wrong loading file")
     parseXMLFromFile(file).then(doc => {
-        notesTableEl.querySelector("tbody").innerHTML = "";
+        notesTableEl.shadowRoot.querySelector("tbody").innerHTML = "";
         while (scriptWrapper.firstChild) {
             scriptWrapper.removeChild(scriptWrapper.firstChild)
         }
@@ -119,8 +120,8 @@ export function handleFileInput(event, state, scriptWrapper, fileNameInput, note
         state.Script.ScriptInnerHTML = scriptWrapper.innerHTML
         state.UndoStack = new UndoStack()
         state.Navigation.EditingTitlePage = false;
-        emptyElement(notesTableEl.querySelector("tbody"))
-        NotesTable.makeNotesTable(notesTableEl, state.Notes)
+        emptyElement(notesTableEl.shadowRoot.querySelector("tbody"))
+        notesTableEl.makeNotesTable(state.Notes)
     }).catch(e => console.warn(e))
 }
 
@@ -654,4 +655,15 @@ function addToCharacterSet(str, script) { // globals
 export function stripCharacterExtenstion(str) {
     if (EXTENSION_REGEX.test(str)) return str.substring(0, str.lastIndexOf('(')).trim();
     else return str
+}
+
+/**
+ * @param {Event} e 
+ * @param {state} state 
+ * @param {HTMLElement} scriptWrapper 
+ * @param {HTMLInputElement} fileNameInput 
+ */
+export function handleShowAddNotePopover(e, state, scriptWrapper, fileNameInput) {
+    
+    const [curentEl, _] = getScriptElementAndCurrentPage(window.getSelection().anchorNode, state, scriptWrapper, fileNameInput)
 }

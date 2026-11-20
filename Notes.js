@@ -1,6 +1,22 @@
 import { NotesTable } from "./NotesTable.js";
 import { handleToggleNote } from "./ScriptConversion.js";
 
+/** @typedef {{Characters: string; Length: string; Page: string; Title: string; Content: string; [key:string]: string}} SceneProperty*/
+/** @typedef {{Scenes: string; Content: string;[key:string]:string}} Character */
+/** @typedef {{Color: string; Content: string; DateModified: string; DateTime: string; Type: string; [key:string]:string}} ScriptNote */
+/** @typedef {{Page:string; Scene:string; Content:string; DateModified:string; DateTime:string; [key:string]:string}} Comment*/
+/** @typedef {{Page:string; Scene:string; Content: string; DateModified:string; DateTime:string; [key:string]:string}} Bookmark */
+/** @typedef {{Page:string; Scene:string; Content: string; DateModified:string; DateTime:string; [key:string]:string}} Beat */
+/** @typedef {{Page:string; Scene:string; Content: string; DateModified:string; DateTime:string; [key:string]:string}} StructurePoint */
+/** @typedef {{Page:string; Scene:string; Effect: string; Content:string; DateModified:string; DateTime:string; [key:string]:string}} Sfx */
+/** @typedef {{Page:string; Scene:string; Effect: string; Content:string; DateModified:string; DateTime:string; [key:string]:string}} Vfx */
+/** @typedef {{Scenes: string; Content: string; DateModified:string; DateTime:string; [key:string]:string}} Prop */
+
+/** @typedef {{Name:string; Address:string; Owner:string; Manager:string; Insurance:string: Contact:string; Scout:string; [key:string]:string}} Location */
+/** @typedef {{Brand:string; Model:string; Serial:string; Owner:string; Insurance:string; [key:string]:string}} Equipment*/
+/** @typedef {{Name: string; Role:string; Scenes:string; Pages:string; Agent:string; Manager:string; Rate:string;[key:string]:string}} Talent*/
+/** @typedef {{Name:string; Role:string; Department:string; Rate:string; [key:string]:string}} Crew*/
+
 export class NoteMenu {
     static ImageURLNote = "img/material-icons/ink_pen_64dp_E3E3E3_FILL0_wght100_GRAD0_opsz48.svg";
 
@@ -102,9 +118,10 @@ export class NoteMenu {
         this.Data[id] = data;
     }
     /**
-     * @param {Record.<string,string>} data 
+     * @param {Object.<string,string>} [data={}] 
+     * @param {`${string}-${string}-${string}-${string}-${string}`} [id=window.crypto.randomUUID()] 
      */
-    newNote(id = window.crypto.randomUUID(), data = {}) {
+    newNote(data = {}, id = window.crypto.randomUUID()) {
         this.Data[id] = data;
         return id;
     }
@@ -206,7 +223,7 @@ export class NoteMenu {
      * @param {string} noteType 
      * @param {Object.<string,string>} noteObj 
      * @param {NoteMenu} noteMenu 
-     * @param {(el) => void} close 
+     * @param {(el:HTMLElement) => void} close 
      * @returns {Node}
      */
     static makeNoteTooltipStatic(id, noteType, noteObj, noteMenu, close) {
@@ -226,7 +243,7 @@ export class NoteMenu {
             newHeading.textContent = note;
             const newData = document.createElement("td")
             newData.dataset.bind = note
-            newData.textContent = note === "DateModified" || note === "DateTime" ? new Date(noteObj[note]).toLocaleString(): noteObj[note]
+            newData.textContent = note === "DateModified" || note === "DateTime" ? new Date(noteObj[note]).toLocaleString() : noteObj[note]
             newRow.appendChild(newHeading)
             newRow.appendChild(newData)
             NoteFields.appendChild(newRow)
@@ -238,11 +255,12 @@ export class NoteMenu {
         NewNotePopover.querySelector(".cancel-note-btn").addEventListener("click", (e) => close(NewNotePopover))
         NewNotePopover.querySelector(".save-note-btn").addEventListener("click", (e) => {
             noteMenu.updateNoteIDField(id, "Content", NewNotePopover.querySelector("#note-body").value)
-            NotesTable.updateNoteRow(document.querySelector("notes-table").shadowRoot, id, noteObj, noteType, noteMenu)
+            document.querySelector("notes-table").updateNoteRow( id, noteObj, noteType, noteMenu)
             close(NewNotePopover)
         })
         NewNotePopover.querySelector(".delete-note-btn").addEventListener("click", (e) => {
             noteMenu.deleteNote(id)
+            document.querySelector("notes-table").deleteNoteRow(id)
             close(NewNotePopover)
         })
         return NewNotePopover
@@ -267,6 +285,7 @@ export class NoteMenu {
     static fromSave(noteType, data) {
         return new NoteMenu(noteType, data)
     }
+    // addNote()
 }
 
 export class Notes {
@@ -280,21 +299,31 @@ export class Notes {
         Sfx: "SFX",
         Vfx: "VFX",
         Props: "Prop",
+        Characters: "Characters",
+        Locations: "Locations",
+        Talent: "Talent",
+        Crew: "Crew",
+        Equipment: "Equipment"
     }
     /**
      * Each type of notes category is a record of UUIDs with a sort-of-standard note attached.
-     * @param {NoteMenu} sceneProps 
-     * @param {NoteMenu} scriptNotes 
-     * @param {NoteMenu} comments 
-     * @param {NoteMenu} beats 
-     * @param {NoteMenu} structurePoints 
-     * @param {NoteMenu} bookmarks 
-     * @param {NoteMenu} sfx 
-     * @param {NoteMenu} vfx 
-     * @param {NoteMenu} props 
+     * @param {NoteMenu} [sceneProps=new NoteMenu("Scene Property")] 
+     * @param {NoteMenu} [scriptNotes=new NoteMenu("Script Note")] 
+     * @param {NoteMenu} [comments=new NoteMenu("Comment")] 
+     * @param {NoteMenu} [beats=new NoteMenu("Beat")] 
+     * @param {NoteMenu} [structurePoints=new NoteMenu("Structure Point")] 
+     * @param {NoteMenu} [bookmarks=new NoteMenu("Bookmark")] 
+     * @param {NoteMenu} [sfx=new NoteMenu("SFX")] 
+     * @param {NoteMenu} [vfx=new NoteMenu("VFX")] 
+     * @param {NoteMenu} [props=new NoteMenu("Prop")] 
+     * @param {NoteMenu} [characters=new NoteMenu("Characters")] 
+     * @param {NoteMenu} [locations=new NoteMenu("Locations")] 
+     * @param {NoteMenu} [talent=new NoteMenu("Talent")] 
+     * @param {NoteMenu} [crew=new NoteMenu("Crew")] 
+     * @param {NoteMenu} [equipment=new NoteMenu("Equipment")] 
      */
     constructor(
-        sceneProps = new NoteMenu("Scene Properties"),
+        sceneProps = new NoteMenu("Scene Property"),
         scriptNotes = new NoteMenu("Script Note"),
         comments = new NoteMenu("Comment"),
         beats = new NoteMenu("Beat"),
@@ -303,18 +332,26 @@ export class Notes {
         sfx = new NoteMenu("SFX"),
         vfx = new NoteMenu("VFX"),
         props = new NoteMenu("Prop"),
-        characters = new NoteMenu("Characters")
+        characters = new NoteMenu("Characters"),
+        locations = new NoteMenu("Locations"),
+        talent = new NoteMenu("Talent"),
+        crew = new NoteMenu("Crew"),
+        equipment = new NoteMenu("Equipment")
     ) {
+        /** @type {NoteMenu} */ this.ScriptNotes = scriptNotes;
+        /** @type {NoteMenu} */ this.SceneProps = sceneProps;
         /** @type {NoteMenu} */ this.Comments = comments;
         /** @type {NoteMenu} */ this.Bookmarks = bookmarks;
-        /** @type {NoteMenu} */ this.SceneProps = sceneProps;
-        /** @type {NoteMenu} */ this.ScriptNotes = scriptNotes;
         /** @type {NoteMenu} */ this.Beats = beats;
         /** @type {NoteMenu} */ this.StructurePoints = structurePoints;
         /** @type {NoteMenu} */ this.Characters = characters;
         /** @type {NoteMenu} */ this.Sfx = sfx;
         /** @type {NoteMenu} */ this.Vfx = vfx;
         /** @type {NoteMenu} */ this.Props = props;
+        /** @type {NoteMenu} */ this.Locations = locations
+        /** @type {NoteMenu} */ this.Talent = talent
+        /** @type {NoteMenu} */ this.Crew = crew
+        /** @type {NoteMenu} */ this.Equipment = equipment
     }
     loadNotes(scenePropertiesEl, scriptNoteEl) {
         const ScriptNoteTemplate = scriptNoteEl.getElementsByTagName("template")[0].content.querySelector("scriptnote")
@@ -339,8 +376,6 @@ export class Notes {
             NewScriptNote.id = note
             scriptNoteEl.appendChild(NewScriptNote)
         }
-        // for (const note in this.scriptno)
-        // console.log(scenePropertiesEl, scriptNoteEl)
     }
     /**
      * @param {string} id
@@ -383,5 +418,16 @@ export class Notes {
             return true;
         }
         return false
+    }
+    /**
+     * @param {HTMLElement} el 
+     * @param {Object.<string,string>} data 
+     * @param {string} noteType 
+     */
+    addNote(el, data, noteType) {
+        /** @type {NoteMenu} */
+        const noteMenu = this[noteType]
+        const newUUID = noteMenu.newNote(data)
+        el.id = newUUID;
     }
 }
